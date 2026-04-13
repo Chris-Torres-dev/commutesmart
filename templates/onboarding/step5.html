@@ -1,0 +1,40 @@
+{% extends "onboarding/layout.html" %}
+
+{% block title %}Onboarding Step 5 | CommuteSmart{% endblock %}
+
+{% block onboarding_content %}
+  <p class="label">Step 5</p>
+  <h2>What's your weekly commute budget?</h2>
+  <p class="section-copy">Pick the range that feels real. You can edit it any time on the finance page.</p>
+
+  <form method="post" class="form-stack" data-onboarding-preview>
+    <div class="budget-choice-grid">
+      {% for value, text in [("18", "Under $20/week"), ("34", "$20-$35/week"), ("45", "$35-$50/week"), ("75", "$50-$100/week"), ("custom", "Custom")] %}
+        <label class="budget-choice">
+          <input type="radio" name="budget_choice" value="{{ value }}" {% if (value != 'custom' and value|float == data.weekly_budget|float) or (value == 'custom' and data.weekly_budget not in [18, 34, 45, 75]) %}checked{% endif %}>
+          <span>{{ text }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <label class="input-group" data-custom-budget>
+      <span>Custom budget</span>
+      <input type="number" name="custom_budget" min="10" max="300" step="1" value="{{ data.weekly_budget if data.weekly_budget not in [18, 34, 45, 75] else '' }}" placeholder="Enter weekly budget">
+    </label>
+
+    <div class="toggle-row">
+      <label class="toggle-pill">
+        <input type="checkbox" name="budget_alert_50" {% if data.budget_alert_50 %}checked{% endif %}>
+        <span>50% alert</span>
+      </label>
+      <label class="toggle-pill">
+        <input type="checkbox" name="budget_alert_80" {% if data.budget_alert_80 %}checked{% endif %}>
+        <span>80% alert</span>
+      </label>
+    </div>
+
+    <div class="split-actions">
+      <a class="btn-secondary" href="{{ url_for('onboarding.skip_step', step=5) }}">Skip</a>
+      <button class="btn-primary" type="submit">Finish setup</button>
+    </div>
+  </form>
+{% endblock %}

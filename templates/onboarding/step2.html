@@ -1,0 +1,37 @@
+{% extends "onboarding/layout.html" %}
+
+{% block title %}Onboarding Step 2 | CommuteSmart{% endblock %}
+
+{% block onboarding_content %}
+  <p class="label">Step 2</p>
+  <h2>Where are you headed?</h2>
+  <p class="section-copy">Pick a school or drop in any destination you commute to regularly.</p>
+
+  <form method="post" class="form-stack">
+    <div class="quick-school-grid">
+      {% for school in schools %}
+        <button
+          type="button"
+          class="choice-chip school-choice"
+          data-school-name="{{ school.name }}"
+          data-school-address="{{ school.address }}"
+        >
+          {{ school.name }}
+        </button>
+      {% endfor %}
+    </div>
+
+    <label class="input-group">
+      <span>School name</span>
+      <input type="text" name="school_name" value="{{ data.school_name }}" placeholder="Hunter College" required>
+    </label>
+    <label class="input-group">
+      <span>School address</span>
+      <input type="text" name="school_address" value="{{ data.school_address }}" placeholder="695 Park Ave, New York, NY 10065" required>
+    </label>
+    <div class="split-actions">
+      <a class="btn-secondary" href="{{ url_for('onboarding.skip_step', step=2) }}">Skip</a>
+      <button class="btn-primary" type="submit">Next step</button>
+    </div>
+  </form>
+{% endblock %}

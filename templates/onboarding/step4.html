@@ -1,0 +1,28 @@
+{% extends "onboarding/layout.html" %}
+
+{% block title %}Onboarding Step 4 | CommuteSmart{% endblock %}
+
+{% block onboarding_content %}
+  <p class="label">Step 4</p>
+  <h2>Which ways can you get there?</h2>
+  <p class="section-copy">Choose every mode you'd realistically use. We'll compare them side by side.</p>
+
+  <form method="post" class="form-stack" data-onboarding-preview>
+    <div class="choice-grid">
+      {% for value, label, icon in [("subway", "Subway", "fa-train-subway"), ("bus", "Bus", "fa-bus"), ("bike", "Citi Bike", "fa-bicycle"), ("car", "Car", "fa-car-side")] %}
+        <label class="transport-choice">
+          <input type="checkbox" name="transport_modes" value="{{ value }}" {% if value in data.transport_modes %}checked{% endif %}>
+          <span><i class="fa-solid {{ icon }}"></i> {{ label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <label class="input-group">
+      <span>If you drive, what's your car MPG?</span>
+      <input type="number" name="car_mpg" min="10" max="80" step="1" value="{{ data.car_mpg }}">
+    </label>
+    <div class="split-actions">
+      <a class="btn-secondary" href="{{ url_for('onboarding.skip_step', step=4) }}">Skip</a>
+      <button class="btn-primary" type="submit">Next step</button>
+    </div>
+  </form>
+{% endblock %}

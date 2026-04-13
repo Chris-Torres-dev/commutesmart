@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}CommuteSmart | NYC Student Commute Optimizer{% endblock %}
+{% block body_class %}landing-page{% endblock %}
+
+{% block content %}
+  <section class="landing-hero">
+    <div class="landing-hero__copy">
+      <p class="label">Built For NYC Students</p>
+      <h1>Stretch every commute dollar without guessing.</h1>
+      <p class="hero-text">
+        CommuteSmart compares subway, bus, Citi Bike, and car costs in one place so you can pick the route
+        that fits your week, your budget, and the way you actually move through the city.
+      </p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="{{ url_for('auth.signup') }}">Create account</a>
+        <a class="btn-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+        <a class="btn-secondary" href="{{ url_for('auth.guest') }}">Continue as guest</a>
+      </div>
+    </div>
+
+    <div class="landing-hero__visual">
+      <div class="hero-orbit hero-orbit--one"></div>
+      <div class="hero-orbit hero-orbit--two"></div>
+      <div class="route-poster">
+        <div class="route-poster__top">
+          <span class="badge badge-yellow">Fast + cheap</span>
+          <span class="route-poster__time">42 min</span>
+        </div>
+        <h2>Hunter College to Brooklyn</h2>
+        <p>Cheapest this week: OMNY weekly cap</p>
+        <div class="route-stops">
+          <span>Home</span>
+          <span></span>
+          <span>Campus</span>
+        </div>
+        <div class="route-metrics">
+          <div>
+            <p class="label">This Week</p>
+            <p class="big-number">$34</p>
+          </div>
+          <div>
+            <p class="label">You Save</p>
+            <p class="big-number savings-text">$18</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

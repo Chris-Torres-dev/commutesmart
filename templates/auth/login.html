@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Log in | CommuteSmart{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+
+{% block content %}
+  <section class="auth-layout">
+    <div class="auth-panel auth-panel--copy">
+      <p class="label">Log In</p>
+      <h1>Pick up right where your plans left off.</h1>
+      <p class="hero-text">Your dashboard keeps budget progress, route comparisons, and saved commute picks together.</p>
+    </div>
+
+    <div class="auth-panel">
+      <form method="post" class="form-stack">
+        <label class="input-group">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="student@example.edu" required>
+        </label>
+        <label class="input-group">
+          <span>Password</span>
+          <input type="password" name="password" placeholder="Enter your password" required>
+        </label>
+        <button class="btn-primary" type="submit">Log in</button>
+      </form>
+      <p class="helper-text">New here? <a href="{{ url_for('auth.signup') }}">Create an account</a></p>
+    </div>
+  </section>
+{% endblock %}

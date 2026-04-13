@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Finance | CommuteSmart{% endblock %}
+
+{% block content %}
+  <section class="finance-shell" id="finance-root">
+    <div class="surface-heading">
+      <div>
+        <p class="label">Finance</p>
+        <h1>Keep your commute spending in bounds.</h1>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <article class="metric-card">
+        <p class="label">This week</p>
+        <h2 data-metric-week>${{ "%.0f"|format(finance.metrics.week) }}</h2>
+      </article>
+      <article class="metric-card">
+        <p class="label">This month</p>
+        <h2 data-metric-month>${{ "%.0f"|format(finance.metrics.month) }}</h2>
+      </article>
+      <article class="metric-card">
+        <p class="label">This semester</p>
+        <h2 data-metric-semester>${{ "%.0f"|format(finance.metrics.semester) }}</h2>
+      </article>
+      <article class="metric-card metric-card--sage">
+        <p class="label">Saved vs no app</p>
+        <h2 data-metric-saved>${{ "%.0f"|format(finance.metrics.saved) }}</h2>
+      </article>
+    </div>
+
+    <div class="finance-grid">
+      <section class="surface-panel">
+        <div class="panel-header">
+          <div>
+            <p class="label">Budget settings</p>
+            <h2>${{ "%.0f"|format(finance.budget) }}/week target</h2>
+          </div>
+          <span class="badge badge-blue" data-budget-percent>{{ finance.budget_status.percent }}% used</span>
+        </div>
+        <div class="budget-preset-row">
+          {% for option in [20, 35, 50, 75] %}
+            <button class="choice-chip budget-preset" type="button" data-budget="{{ option }}">${{ option }}</button>
+          {% endfor %}
+        </div>
+        <form class="form-stack" id="budget-form">
+          <label class="input-group">
+            <span>Weekly budget</span>
+            <input type="number" name="weekly_budget" value="{{ finance.budget }}" min="10" max="300" step="1">
+          </label>
+          <div class="toggle-row">
+            <label class="toggle-pill">
+              <input type="checkbox" name="budget_alert_50" {% if data.budget_alert_50 %}checked{% endif %}>
+              <span>50% alert</span>
+            </label>
+            <label class="toggle-pill">
+              <input type="checkbox" name="budget_alert_80" {% if data.budget_alert_80 %}checked{% endif %}>
+              <span>80% alert</span>
+            </label>
+          </div>
+          <button class="btn-primary" type="submit">Apply budget</button>
+        </form>
+      </section>
+
+      <section class="surface-panel">
+        <div class="panel-header">
+          <div>
+            <p class="label">Add spend</p>
+            <h2>Log a commute expense</h2>
+          </div>
+        </div>
+        <form class="form-stack" id="spend-form">
+          <label class="input-group">
+            <span>Amount</span>
+            <input type="number" name="amount" min="0" step="0.01" placeholder="12.50" required>
+          </label>
+          <label class="input-group">
+            <span>Transport mode</span>
+            <select name="transport_mode">
+              {% for mode in data.transport_modes %}
+                <option value="{{ mode }}">{{ mode|title }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="input-group">
+            <span>Notes</span>
+            <input type="text" name="notes" placeholder="Late-night ride home">
+          </label>
+          <button class="btn-primary" type="submit">Add spend</button>
+        </form>
+      </section>
+
+      <section class="surface-panel surface-panel--wide">
+        <div class="panel-header">
+          <div>
+            <p class="label">Weekly bars</p>
+            <h2>Last 8 weeks vs budget</h2>
+          </div>
+        </div>
+        <canvas id="weekly-chart" height="180"></canvas>
+      </section>
+
+      <section class="surface-panel surface-panel--wide">
+        <div class="panel-header">
+          <div>
+            <p class="label">Monthly trend</p>
+            <h2>Last 6 months</h2>
+          </div>
+        </div>
+        <canvas id="monthly-chart" height="180"></canvas>
+      </section>
+
+      <section class="surface-panel">
+        <div class="panel-header">
+          <div>
+            <p class="label">Recent entries</p>
+            <h2>Latest spend logs</h2>
+          </div>
+        </div>
+        <div class="alert-stack" id="recent-logs">
+          {% for log in finance.logs %}
+            <article class="alert-card">
+              <span class="badge badge-gray">{{ log.transport_mode|title }}</span>
+              <h3>${{ "%.2f"|format(log.amount_spent) }}</h3>
+              <p class="section-copy">{{ log.notes or "Commute expense logged." }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="surface-panel">
+        <div class="panel-header">
+          <div>
+            <p class="label">Export</p>
+            <h2>Copy a quick summary</h2>
+          </div>
+        </div>
+        <textarea id="export-output" rows="8">{{ export_text }}</textarea>
+        <button class="btn-secondary btn-inline" id="export-button" type="button">Refresh export</button>
+      </section>
+    </div>
+  </section>
+
+  <script id="finance-data" type="application/json">{{ finance|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/budget.js') }}"></script>
+{% endblock %}

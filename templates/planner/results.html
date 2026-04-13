@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Planner | CommuteSmart{% endblock %}
+
+{% block content %}
+  <section class="planner-shell">
+    <div class="surface-heading">
+      <div>
+        <p class="label">Planner</p>
+        <h1>Compare your commute options side by side.</h1>
+      </div>
+    </div>
+
+    <form class="surface-panel planner-form" method="get">
+      <label class="input-group">
+        <span>Origin</span>
+        <input type="text" name="origin" value="{{ data.origin }}" placeholder="Brooklyn, NY">
+      </label>
+      <label class="input-group">
+        <span>Destination</span>
+        <input type="text" name="destination" value="{{ data.destination }}" placeholder="Hunter College, New York, NY">
+      </label>
+      <label class="input-group">
+        <span>Days</span>
+        <select name="days_per_week">
+          {% for option in [1,2,3,4,5,6,7] %}
+            <option value="{{ option }}" {% if option == data.days_per_week %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="input-group">
+        <span>Trips</span>
+        <select name="trips_per_day">
+          {% for option in [1,2,3,4] %}
+            <option value="{{ option }}" {% if option == data.trips_per_day %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="input-group">
+        <span>Budget</span>
+        <input type="number" name="weekly_budget" value="{{ data.weekly_budget }}" min="10" max="300" step="1">
+      </label>
+      <div class="planner-modes">
+        {% for mode in ["subway","bus","bike","car"] %}
+          <label class="toggle-pill">
+            <input type="checkbox" name="transport_modes" value="{{ mode }}" {% if mode in data.transport_modes %}checked{% endif %}>
+            <span>{{ mode|title }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <button class="btn-primary" type="submit">Find my plan</button>
+    </form>
+
+    <div class="planner-toolbar">
+      <div class="planner-toggle" data-sort-buttons>
+        <button class="sort-button {% if sort_by == 'cheapest' %}is-active{% endif %}" type="button" data-sort="cost">Cheapest first</button>
+        <button class="sort-button {% if sort_by == 'fastest' %}is-active{% endif %}" type="button" data-sort="duration">Fastest first</button>
+      </div>
+      <p class="section-copy">Cheapest right now: <strong class="savings-text">{{ cheapest_plan_name }}</strong>. Fastest: <strong>{{ fastest_plan_name }}</strong>.</p>
+    </div>
+
+    <div class="plans-grid" id="plans-grid">
+      {% for plan in plans %}
+        <article
+          class="plan-card {% if plan.plan_name == cheapest_plan_name %}plan-card--cheapest{% endif %}"
+          data-cost="{{ plan.weekly_cost }}"
+          data-duration="{{ plan.duration_minutes }}"
+        >
+          <div class="plan-card__top">
+            <div>
+              <span class="badge {% if plan.plan_name == cheapest_plan_name %}badge-sage{% else %}badge-blue{% endif %}">
+                {% if plan.plan_name == cheapest_plan_name %}Cheapest{% else %}{{ plan.best_for }}{% endif %}
+              </span>
+              <h2>{{ plan.plan_name }}</h2>
+            </div>
+            <i class="fa-solid {{ plan.icon }}"></i>
+          </div>
+
+          <div class="plan-stats">
+            <div>
+              <p class="label">Weekly cost</p>
+              <p class="big-number {% if plan.plan_name == cheapest_plan_name %}savings-text{% endif %}">${{ "%.0f"|format(plan.weekly_cost) }}</p>
+            </div>
+            <div>
+              <p class="label">Travel time</p>
+              <p class="big-number">{{ plan.duration_minutes }} min</p>
+            </div>
+          </div>
+
+          <p class="section-copy">{{ plan.summary }}</p>
+          <p class="label">Best for</p>
+          <p>{{ plan.best_for }}</p>
+
+          {% if plan.breakdown %}
+            <div class="breakdown-list">
+              <span>Gas <strong>${{ "%.0f"|format(plan.breakdown.gas) }}</strong></span>
+              <span>Tolls <strong>${{ "%.0f"|format(plan.breakdown.tolls) }}</strong></span>
+              <span>Parking <strong>${{ "%.0f"|format(plan.breakdown.parking) }}</strong></span>
+              <span>Total <strong>${{ "%.0f"|format(plan.breakdown.total) }}</strong></span>
+            </div>
+            {% if plan.needs_toll_confirmation %}
+              <p class="section-copy">{{ plan.confirmation_prompt }}</p>
+            {% endif %}
+          {% endif %}
+
+          {% if plan.estimated %}
+            <span class="badge badge-orange">Estimated</span>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('planner.select_plan') }}">
+            <input type="hidden" name="plan_data" value='{{ plan|tojson|safe }}'>
+            <button class="btn-primary" type="submit">Select this plan</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+
+    <section class="surface-panel recommendation-panel">
+      <p class="label">AI Recommendation</p>
+      <h2>{{ recommendation.best_plan }}</h2>
+      <p>{{ recommendation.reason }}</p>
+      <p class="section-copy">{{ recommendation.tip }}</p>
+      <p class="savings-text">{{ recommendation.savings_message }}</p>
+    </section>
+
+    {% if citibike_snapshot %}
+      <section class="surface-panel">
+        <p class="label">Citi Bike Pulse</p>
+        <h2>Stations with bikes available</h2>
+        <div class="news-grid">
+          {% for station in citibike_snapshot.stations %}
+            <article class="news-card">
+              <h3>Station {{ station.station_id }}</h3>
+              <p class="section-copy">{{ station.num_bikes_available }} bikes available now.</p>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/planner.js') }}"></script>
+{% endblock %}

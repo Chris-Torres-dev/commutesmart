@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block body_class %}onboarding-page{% endblock %}
+
+{% block content %}
+  <section class="onboarding-shell" data-preview-cheapest="{{ preview.cheapest }}" data-preview-suggested="{{ preview.suggested }}">
+    <div class="onboarding-topbar">
+      <div>
+        <p class="label">Step {{ step }} of 5</p>
+        <h1>Build your commute profile.</h1>
+      </div>
+      <a class="btn-secondary btn-inline" href="{{ url_for('onboarding.skip_all') }}">Skip all</a>
+    </div>
+
+    <div class="progress-track" aria-label="Onboarding progress">
+      <span style="width: {{ progress }}%;"></span>
+    </div>
+
+    <div class="onboarding-grid">
+      <article class="onboarding-card">
+        {% block onboarding_content %}{% endblock %}
+      </article>
+
+      <aside class="preview-card">
+        <p class="label">Weekly preview</p>
+        <h2>Here's your current floor.</h2>
+        <p class="preview-copy">
+          Based on your commute, the cheapest plan costs
+          <strong class="preview-cheapest">${{ "%.0f"|format(preview.cheapest) }}/week</strong>.
+          We suggest budgeting at least
+          <strong class="preview-suggested">${{ "%.0f"|format(preview.suggested) }}/week</strong>
+          for flexibility.
+        </p>
+      </aside>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/onboarding.js') }}"></script>
+{% endblock %}

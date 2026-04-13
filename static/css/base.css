@@ -1,0 +1,227 @@
+:root {
+  --bg-deep: #060E1A;
+  --bg-screen: #0D1E35;
+  --bg-card: #0A1828;
+  --bg-input: #081422;
+  --orange: #C86030;
+  --baby-blue: #89C4E1;
+  --sage: #8FAF8C;
+  --yellow: #D4AE3A;
+  --marine: #0D1E35;
+  --text-primary: #FFFFFF;
+  --text-secondary: #89C4E1;
+  --text-muted: #4A6480;
+  --border: #162840;
+  --border-sage: #2A3D2A;
+  --surface-glow: rgba(137, 196, 225, 0.12);
+  --overlay-soft: rgba(6, 14, 26, 0.82);
+  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 18px 32px rgba(0, 0, 0, 0.24);
+  --badge-sage-bg: #1A2E1A;
+  --badge-blue-bg: #0D2340;
+  --badge-orange-bg: #3D1E0E;
+  --badge-yellow-bg: #3D3010;
+  --badge-gray-bg: #162840;
+  --max-width: 1180px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(137, 196, 225, 0.12), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(212, 174, 58, 0.12), transparent 28%),
+    linear-gradient(180deg, var(--bg-deep), var(--bg-screen) 50%, var(--bg-deep));
+  color: var(--text-primary);
+  font-family: "Nunito", sans-serif;
+}
+
+main {
+  width: min(var(--max-width), calc(100% - 2rem));
+  margin: 0 auto 4rem;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.big-number {
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  font-weight: 800;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.site-header {
+  width: min(var(--max-width), calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  background: rgba(6, 14, 26, 0.72);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.brand img {
+  width: 2.1rem;
+  height: 2.1rem;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.nav-cta {
+  padding: 0.8rem 1.1rem;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--bg-deep);
+}
+
+.nav-ghost {
+  background: transparent;
+  border: 1px solid var(--baby-blue);
+  color: var(--baby-blue);
+}
+
+.guest-banner {
+  background: rgba(212, 174, 58, 0.16);
+  border-bottom: 1px solid rgba(212, 174, 58, 0.3);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  text-align: center;
+}
+
+.guest-banner__link {
+  color: var(--yellow);
+  font-weight: 800;
+}
+
+.flash-stack {
+  width: min(var(--max-width), calc(100% - 2rem));
+  margin: 1rem auto 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.flash {
+  border-radius: 16px;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid var(--border);
+  background: rgba(13, 30, 53, 0.8);
+}
+
+.flash-success {
+  border-color: var(--border-sage);
+  color: var(--sage);
+}
+
+.flash-warning {
+  color: var(--orange);
+}
+
+.flash-info {
+  color: var(--baby-blue);
+}
+
+.hero-text,
+.section-copy,
+.preview-copy,
+.helper-text {
+  color: var(--text-secondary);
+}
+
+.savings-text {
+  color: var(--sage);
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    padding: 1rem 0;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  main {
+    width: min(var(--max-width), calc(100% - 1.25rem));
+  }
+}

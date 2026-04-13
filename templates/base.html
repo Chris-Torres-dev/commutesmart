@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CommuteSmart{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8cg7TzR4g1LJr59Q9l5+ND2ImQx0Q==" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="app-shell">
+    {% if guest_mode %}
+      <div class="guest-banner">
+        <span>You're in guest mode - save your data by signing up.</span>
+        <a class="guest-banner__link" href="{{ url_for('auth.signup') }}">Create account</a>
+      </div>
+    {% endif %}
+
+    <header class="site-header">
+      <a class="brand" href="{{ url_for('dashboard.home' if (active_user or guest_mode) else 'auth.landing') }}">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="CommuteSmart logo">
+        <span>CommuteSmart</span>
+      </a>
+
+      <nav class="site-nav">
+        {% if active_user or guest_mode %}
+          <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
+          <a href="{{ url_for('planner.results') }}">Plan</a>
+          <a href="{{ url_for('finance.dashboard') }}">Finance</a>
+          <a href="{{ url_for('onboarding.step', step=1) }}">Profile</a>
+          {% if guest_mode %}
+            <a class="nav-cta" href="{{ url_for('auth.signup') }}">Save My Data</a>
+          {% else %}
+            <a class="nav-cta nav-ghost" href="{{ url_for('auth.logout') }}">Log out</a>
+          {% endif %}
+        {% else %}
+          <a href="{{ url_for('auth.login') }}">Log in</a>
+          <a class="nav-cta" href="{{ url_for('auth.signup') }}">Create account</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <section class="flash-stack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" integrity="sha512-7sVfD0frpVx1tp9M7gc3KJ2YMBX1AHzrc4c3OJbGdv8wZ/Sc7VcRbP5hqjv3Vv4Y20N6l0e6QF6UVx/F4SkzEA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

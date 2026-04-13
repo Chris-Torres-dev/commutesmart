@@ -1,0 +1,20 @@
+{% extends "onboarding/layout.html" %}
+
+{% block title %}Onboarding Step 1 | CommuteSmart{% endblock %}
+
+{% block onboarding_content %}
+  <p class="label">Step 1</p>
+  <h2>Where do you live?</h2>
+  <p class="section-copy">Drop in the address you start from most often. Apartment, dorm, or subway-adjacent corner all work.</p>
+
+  <form method="post" class="form-stack">
+    <label class="input-group">
+      <span>Home address</span>
+      <input type="text" name="home_address" value="{{ data.home_address }}" placeholder="123 Main St, Brooklyn, NY" required>
+    </label>
+    <div class="split-actions">
+      <a class="btn-secondary" href="{{ url_for('onboarding.skip_step', step=1) }}">Skip</a>
+      <button class="btn-primary" type="submit">Next step</button>
+    </div>
+  </form>
+{% endblock %}
