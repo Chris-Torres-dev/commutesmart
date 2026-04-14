@@ -11,7 +11,12 @@ from routes import (
     get_onboarding_data,
     login_or_guest_required,
     persist_profile_for_user,
+    safe_float,
+    safe_int,
+    sanitize,
+    sanitize_choice_list,
     update_onboarding_data,
+    validate_input,
 )
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/onboarding")
@@ -21,31 +26,54 @@ def _to_bool(value: str | None) -> bool:
     return value in {"on", "true", "1", "yes"}
 
 
+def _validate_step_update(step: int, payload: dict) -> str | None:
+    if step == 1:
+        return validate_input(payload.get("home_address", ""), 255, "Home address")
+    if step == 2:
+        return validate_input(payload.get("school_name", ""), 120, "School name") or validate_input(
+            payload.get("school_address", ""),
+            255,
+            "School address",
+        )
+    return None
+
+
 def _apply_step_update(step: int) -> dict:
     if step == 1:
-        return {"home_address": request.form.get("home_address", "").strip()}
+        return {"home_address": sanitize(request.form.get("home_address", ""))}
     if step == 2:
         return {
-            "school_name": request.form.get("school_name", "").strip(),
-            "school_address": request.form.get("school_address", "").strip(),
+            "school_name": sanitize(request.form.get("school_name", "")),
+            "school_address": sanitize(request.form.get("school_address", "")),
         }
     if step == 3:
         return {
-            "days_per_week": int(request.form.get("days_per_week", 4)),
-            "trips_per_day": int(request.form.get("trips_per_day", 2)),
-            "commute_time_preference": request.form.get("commute_time_preference", "AM"),
+            "days_per_week": safe_int(request.form.get("days_per_week", 4), 4, minimum=1, maximum=7),
+            "trips_per_day": safe_int(request.form.get("trips_per_day", 2), 2, minimum=1, maximum=4),
+            "commute_time_preference": sanitize(request.form.get("commute_time_preference", "AM")) or "AM",
         }
     if step == 4:
         return {
-            "transport_modes": request.form.getlist("transport_modes") or ["subway"],
-            "car_mpg": float(request.form.get("car_mpg") or Config.DEFAULT_MPG),
+            "transport_modes": sanitize_choice_list(
+                request.form.getlist("transport_modes"),
+                allowed={"subway", "bus", "bike", "car"},
+                max_items=4,
+                normalize="lower",
+            )
+            or ["subway"],
+            "car_mpg": safe_float(request.form.get("car_mpg"), Config.DEFAULT_MPG, minimum=10.0, maximum=100.0),
         }
     if step == 5:
-        budget_choice = request.form.get("budget_choice", "")
-        custom_budget = request.form.get("custom_budget", "").strip()
+        budget_choice = sanitize(request.form.get("budget_choice", ""))
+        custom_budget = sanitize(request.form.get("custom_budget", ""))
         selected_budget = custom_budget if budget_choice == "custom" and custom_budget else budget_choice
         return {
-            "weekly_budget": float(selected_budget or DEFAULT_ONBOARDING_DATA["weekly_budget"]),
+            "weekly_budget": safe_float(
+                selected_budget,
+                float(DEFAULT_ONBOARDING_DATA["weekly_budget"]),
+                minimum=10.0,
+                maximum=300.0,
+            ),
             "budget_alert_50": _to_bool(request.form.get("budget_alert_50")),
             "budget_alert_80": _to_bool(request.form.get("budget_alert_80")),
         }
@@ -87,7 +115,13 @@ def step(step: int):
         return redirect(url_for("onboarding.step", step=1))
 
     if request.method == "POST":
-        data = update_onboarding_data(_apply_step_update(step))
+        updates = _apply_step_update(step)
+        validation_error = _validate_step_update(step, updates)
+        if validation_error:
+            flash(validation_error, "warning")
+            return redirect(url_for("onboarding.step", step=step))
+
+        data = update_onboarding_data(updates)
         if step == 5:
             if current_user.is_authenticated:
                 persist_profile_for_user(current_user, data)

@@ -28,7 +28,7 @@ class ServiceTests(unittest.TestCase):
         self.assertIsNone(get_subway_alerts())
         snapshot = get_mta_snapshot(["A"])
         self.assertEqual(snapshot["source"], "fallback")
-        self.assertTrue(snapshot["subway_alerts"])
+        self.assertEqual(snapshot["subway_alerts"], [])
 
     @patch("services.mta_service.requests.get")
     def test_mta_service_parses_subway_alerts(self, mock_get):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass
 from datetime import date
 from functools import wraps
@@ -36,13 +37,76 @@ class GuestUser:
 def get_active_user() -> Any | None:
     if current_user.is_authenticated:
         return current_user
-    if session.get("guest_mode"):
+    if session.get("guest_mode") or session.get("is_guest"):
         return GuestUser()
     return None
 
 
 def is_guest_mode() -> bool:
-    return bool(session.get("guest_mode")) and not current_user.is_authenticated
+    return bool(session.get("guest_mode") or session.get("is_guest")) and not current_user.is_authenticated
+
+
+def sanitize(value: Any) -> str:
+    if value is None:
+        return ""
+    return html.escape(str(value).strip())
+
+
+def sanitize_lower(value: Any) -> str:
+    return sanitize(value).lower()
+
+
+def sanitize_choice_list(
+    values: list[Any],
+    *,
+    allowed: set[str] | None = None,
+    max_items: int = 8,
+    normalize: str | None = None,
+) -> list[str]:
+    cleaned: list[str] = []
+    for raw_value in values[:max_items]:
+        item = sanitize(raw_value)
+        if normalize == "lower":
+            item = item.lower()
+        elif normalize == "upper":
+            item = item.upper()
+        if not item:
+            continue
+        if allowed and item not in allowed:
+            continue
+        if item not in cleaned:
+            cleaned.append(item)
+    return cleaned
+
+
+def validate_input(value: str, max_length: int = 255, field_name: str = "Field") -> str | None:
+    if len(value) > max_length:
+        return f"{field_name} is too long (max {max_length} characters)"
+    return None
+
+
+def safe_int(value: Any, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        parsed = default
+    if minimum is not None:
+        parsed = max(minimum, parsed)
+    if maximum is not None:
+        parsed = min(maximum, parsed)
+    return parsed
+
+
+def safe_float(value: Any, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
+    try:
+        parsed = float(str(value).strip())
+    except (TypeError, ValueError):
+        parsed = default
+    if minimum is not None:
+        parsed = max(minimum, parsed)
+    if maximum is not None:
+        parsed = min(maximum, parsed)
+    return parsed
 
 
 def login_or_guest_required(view):
@@ -98,6 +162,7 @@ def update_onboarding_data(updates: dict[str, Any]) -> dict[str, Any]:
 
 def clear_guest_session() -> None:
     session.pop("guest_mode", None)
+    session.pop("is_guest", None)
     session.pop("onboarding_data", None)
 
 

@@ -14,7 +14,12 @@ from routes import (
     get_guest_saved_plan,
     get_onboarding_data,
     login_or_guest_required,
+    safe_float,
+    safe_int,
+    sanitize,
+    sanitize_choice_list,
     set_guest_saved_plan,
+    validate_input,
 )
 from services.ai_service import get_recommendation
 from services.car_service import calculate_car_cost
@@ -23,6 +28,7 @@ from services.maps_service import get_route
 from services.mta_service import get_mta_snapshot
 
 planner_bp = Blueprint("planner", __name__, url_prefix="/plan")
+ALLOWED_SUBWAY_LINES = {"A", "C", "E", "B", "D", "F", "M", "G", "J", "Z", "N", "Q", "R", "W", "L", "1", "2", "3", "4", "5", "6", "S", "SI", "SIR"}
 
 
 def _normalize_profile_input() -> dict:
@@ -30,21 +36,46 @@ def _normalize_profile_input() -> dict:
     values = request.values
 
     if values.get("origin"):
-        data["home_address"] = values.get("origin", "").strip()
+        origin = sanitize(values.get("origin", ""))
+        error = validate_input(origin, 255, "Origin")
+        if error:
+            flash(error, "warning")
+        else:
+            data["home_address"] = origin
     if values.get("destination"):
-        data["school_address"] = values.get("destination", "").strip()
+        destination = sanitize(values.get("destination", ""))
+        error = validate_input(destination, 255, "Destination")
+        if error:
+            flash(error, "warning")
+        else:
+            data["school_address"] = destination
     if values.get("school_name"):
-        data["school_name"] = values.get("school_name", "").strip()
+        school_name = sanitize(values.get("school_name", ""))
+        error = validate_input(school_name, 120, "School name")
+        if error:
+            flash(error, "warning")
+        else:
+            data["school_name"] = school_name
     if values.get("days_per_week"):
-        data["days_per_week"] = int(values.get("days_per_week", data["days_per_week"]))
+        data["days_per_week"] = safe_int(values.get("days_per_week", data["days_per_week"]), int(data["days_per_week"]), minimum=1, maximum=7)
     if values.get("trips_per_day"):
-        data["trips_per_day"] = int(values.get("trips_per_day", data["trips_per_day"]))
+        data["trips_per_day"] = safe_int(values.get("trips_per_day", data["trips_per_day"]), int(data["trips_per_day"]), minimum=1, maximum=4)
     if values.get("weekly_budget"):
-        data["weekly_budget"] = float(values.get("weekly_budget", data["weekly_budget"]))
+        data["weekly_budget"] = safe_float(values.get("weekly_budget", data["weekly_budget"]), float(data["weekly_budget"]), minimum=10.0, maximum=300.0)
     if values.get("transport_modes"):
-        data["transport_modes"] = request.values.getlist("transport_modes") or data["transport_modes"]
+        data["transport_modes"] = sanitize_choice_list(
+            request.values.getlist("transport_modes"),
+            allowed={"subway", "bus", "bike", "car"},
+            max_items=4,
+            normalize="lower",
+        ) or data["transport_modes"]
     if values.get("subway_lines"):
-        data["subway_lines"] = request.values.getlist("subway_lines")
+        data["subway_lines"] = sanitize_choice_list(
+            request.values.getlist("subway_lines"),
+            allowed=ALLOWED_SUBWAY_LINES,
+            max_items=8,
+            normalize="upper",
+        )
 
     data["origin"] = data.get("home_address") or "Brooklyn, NY"
     data["destination"] = data.get("school_address") or data.get("school_name") or "Hunter College, New York, NY"
@@ -169,7 +200,9 @@ def _sorted_plans(plans: list[dict], sort_by: str) -> list[dict]:
 @limiter.limit("30 per minute")
 def results():
     profile_data = _normalize_profile_input()
-    sort_by = request.values.get("sort", "cheapest")
+    sort_by = sanitize(request.values.get("sort", "cheapest")) or "cheapest"
+    if sort_by not in {"cheapest", "fastest"}:
+        sort_by = "cheapest"
     plans = build_commute_plans(profile_data)
     ordered_plans = _sorted_plans(plans, sort_by)
     cheapest_plan = min(plans, key=lambda plan: plan.get("weekly_cost", float("inf")))
@@ -200,7 +233,16 @@ def results():
 @login_or_guest_required
 def select_plan():
     raw_plan = request.form.get("plan_data", "{}")
-    plan = json.loads(raw_plan)
+    error = validate_input(raw_plan, 10000, "Plan data")
+    if error:
+        flash("We couldn't save that plan right now. Please try again.", "warning")
+        return redirect(url_for("planner.results"))
+
+    try:
+        plan = json.loads(raw_plan)
+    except json.JSONDecodeError:
+        flash("We couldn't save that plan right now. Please try again.", "warning")
+        return redirect(url_for("planner.results"))
 
     if current_user.is_authenticated:
         SavedPlan.query.filter_by(user_id=current_user.id, is_active=True).update({"is_active": False})

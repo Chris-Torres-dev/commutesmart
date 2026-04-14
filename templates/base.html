@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}CommuteSmart{% endblock %}</title>
-  <meta name="description" content="CommuteSmart — NYC student commute optimizer. Find the cheapest way to get to college using real MTA data, Citi Bike, and car costs.">
-  <meta property="og:title" content="CommuteSmart">
+  <meta name="description" content="CommuteSmart - NYC student commute optimizer. Find the cheapest way to get to college using real MTA data, Citi Bike, and car cost calculator.">
+  <meta property="og:title" content="CommuteSmart - NYC Student Commute Optimizer">
   <meta property="og:description" content="Stretch every commute dollar without guessing.">
   <meta property="og:url" content="https://commutesmart-5cgt.onrender.com">
-  <meta name="theme-color" content="#0D1E35">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#0A1F3D">
+  <meta name="robots" content="index, follow">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,24 +31,24 @@
     {% endif %}
 
     <header class="site-header">
-      <a class="brand" href="{{ url_for('dashboard.home' if (active_user or guest_mode) else 'auth.landing') }}">
+      <a class="brand logo-wrap" href="{{ url_for('dashboard.home' if (active_user or guest_mode) else 'auth.landing') }}">
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="CommuteSmart logo">
-        <span>CommuteSmart</span>
+        <span class="logo-text">Commute<span>Smart</span></span>
       </a>
 
       <nav class="site-nav">
         {% if active_user or guest_mode %}
-          <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
-          <a href="{{ url_for('planner.results') }}">Plan</a>
-          <a href="{{ url_for('finance.dashboard') }}">Finance</a>
-          <a href="{{ url_for('onboarding.step', step=1) }}">Profile</a>
+          <a class="{% if request.endpoint == 'dashboard.home' %}active{% endif %}" href="{{ url_for('dashboard.home') }}">Dashboard</a>
+          <a class="{% if request.endpoint and request.endpoint.startswith('planner.') %}active{% endif %}" href="{{ url_for('planner.results') }}">Plan</a>
+          <a class="{% if request.endpoint and request.endpoint.startswith('finance.') %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">Finance</a>
+          <a class="{% if request.endpoint and request.endpoint.startswith('onboarding.') %}active{% endif %}" href="{{ url_for('onboarding.step', step=1) }}">Profile</a>
           {% if guest_mode %}
             <a class="nav-cta" href="{{ url_for('auth.signup') }}">Save My Data</a>
           {% else %}
             <a class="nav-cta nav-ghost" href="{{ url_for('auth.logout') }}">Log out</a>
           {% endif %}
         {% else %}
-          <a href="{{ url_for('auth.login') }}">Log in</a>
+          <a class="{% if request.endpoint and request.endpoint.startswith('auth.login') %}active{% endif %}" href="{{ url_for('auth.login') }}">Log in</a>
           <a class="nav-cta" href="{{ url_for('auth.signup') }}">Create account</a>
         {% endif %}
       </nav>

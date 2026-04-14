@@ -1,19 +1,26 @@
 .btn-primary {
   background: var(--yellow);
-  color: var(--bg-deep);
+  color: #060E1A;
   border: none;
   border-radius: 14px;
   padding: 14px 24px;
   font-size: 15px;
   font-weight: 800;
+  letter-spacing: 0.2px;
   cursor: pointer;
   width: 100%;
-  transition: transform 180ms ease, box-shadow 180ms ease;
-  box-shadow: 0 14px 30px rgba(212, 174, 58, 0.16);
+  transition: transform 0.1s ease, opacity 0.1s ease, box-shadow 180ms ease;
+  box-shadow: 0 14px 30px rgba(212, 174, 58, 0.18);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
+}
+
+.btn-primary:active,
+.btn-secondary:active {
+  transform: scale(0.97);
+  opacity: 0.9;
 }
 
 .btn-secondary {
@@ -28,10 +35,17 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  transition: transform 0.1s ease, opacity 0.1s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .btn-inline {
   width: auto;
+}
+
+[style*="background: var(--yellow)"],
+[style*="background:#D4AE3A"],
+.badge-yellow {
+  color: #060E1A !important;
 }
 
 .badge {
@@ -45,7 +59,7 @@
 
 .badge-sage {
   background: var(--badge-sage-bg);
-  color: var(--sage);
+  color: var(--teal);
 }
 
 .badge-blue {
@@ -59,8 +73,7 @@
 }
 
 .badge-yellow {
-  background: var(--badge-yellow-bg);
-  color: var(--yellow);
+  background: var(--yellow);
 }
 
 .badge-gray {
@@ -123,7 +136,7 @@
 .toggle-pill {
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: rgba(13, 30, 53, 0.65);
+  background: rgba(13, 34, 64, 0.72);
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -168,7 +181,7 @@
   width: 100%;
   height: 10px;
   border-radius: 999px;
-  background: rgba(22, 40, 64, 0.85);
+  background: rgba(26, 58, 92, 0.85);
   overflow: hidden;
 }
 
@@ -192,5 +205,13 @@
   .toggle-row,
   .quick-school-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .btn-primary,
+  .btn-secondary {
+    font-size: 14px;
+    padding: 12px 16px;
   }
 }

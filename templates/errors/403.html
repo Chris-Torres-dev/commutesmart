@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Forbidden | CommuteSmart{% endblock %}
+
+{% block content %}
+  <div class="error-shell">
+    <div class="error-card">
+      <div style="font-size:64px; font-weight:800; color:var(--baby-blue);">403</div>
+      <h2 style="color:var(--text-primary); margin-bottom:1rem;">That stop is off limits.</h2>
+      <p style="color:var(--text-muted); margin-bottom:2rem;">You don't have access to that page, but the rest of your commute tools are ready.</p>
+      <a href="{{ url_for('auth.landing') }}" class="btn-primary btn-inline error-cta" style="display:inline-block; padding:12px 32px;">Go home</a>
+    </div>
+  </div>
+{% endblock %}

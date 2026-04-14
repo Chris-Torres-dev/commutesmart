@@ -14,7 +14,11 @@ from routes import (
     get_onboarding_data,
     login_or_guest_required,
     persist_profile_for_user,
+    safe_float,
+    sanitize,
+    sanitize_choice_list,
     update_onboarding_data,
+    validate_input,
 )
 from routes.finance import build_export_summary, build_finance_payload
 from routes.planner import build_commute_plans
@@ -33,7 +37,11 @@ def ping():
 @limiter.limit("10 per minute")
 def chat():
     payload = request.get_json(silent=True) or {}
-    message = payload.get("message", "").strip()
+    message = sanitize(payload.get("message", ""))
+    error = validate_input(message, 500, "Message")
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+
     profile = get_onboarding_data()
     plans = build_commute_plans({**profile, "origin": profile.get("home_address"), "destination": profile.get("school_address")})
     response = answer_commute_question(message or "What's my best route today?", profile, plans)
@@ -44,7 +52,7 @@ def chat():
 @login_or_guest_required
 def update_budget():
     payload = request.get_json(silent=True) or {}
-    budget = float(payload.get("weekly_budget") or get_onboarding_data().get("weekly_budget") or 34)
+    budget = safe_float(payload.get("weekly_budget"), float(get_onboarding_data().get("weekly_budget") or 34), minimum=10.0, maximum=300.0)
     updates = {
         "weekly_budget": budget,
         "budget_alert_50": bool(payload.get("budget_alert_50", True)),
@@ -61,9 +69,14 @@ def update_budget():
 @login_or_guest_required
 def add_spend_log():
     payload = request.get_json(silent=True) or {}
-    amount = float(payload.get("amount") or 0)
-    mode = payload.get("transport_mode", "subway")
-    notes = payload.get("notes", "")
+    amount = safe_float(payload.get("amount"), 0.0, minimum=0.0, maximum=500.0)
+    modes = sanitize_choice_list([payload.get("transport_mode", "subway")], allowed={"subway", "bus", "bike", "car", "walking"}, max_items=1, normalize="lower")
+    mode = modes[0] if modes else "subway"
+    notes = sanitize(payload.get("notes", ""))
+    error = validate_input(notes, 255, "Notes")
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+
     week_start = current_week_start()
 
     if current_user.is_authenticated:

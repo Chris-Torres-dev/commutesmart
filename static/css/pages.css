@@ -48,8 +48,8 @@
   width: min(100%, 420px);
   padding: 1.6rem;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(10, 24, 40, 0.96), rgba(13, 30, 53, 0.92));
-  border: 1px solid rgba(137, 196, 225, 0.16);
+  background: linear-gradient(180deg, rgba(13, 34, 64, 0.96), rgba(10, 31, 61, 0.92));
+  border: 1px solid rgba(125, 200, 232, 0.2);
   box-shadow: var(--shadow-lg);
   display: grid;
   gap: 1rem;
@@ -106,7 +106,7 @@
 .auth-panel,
 .onboarding-card,
 .preview-card {
-  background: rgba(10, 24, 40, 0.88);
+  background: rgba(13, 34, 64, 0.88);
   border: 1px solid var(--border);
   border-radius: 28px;
   box-shadow: var(--shadow-md);
@@ -118,7 +118,7 @@
 }
 
 .auth-panel--copy {
-  background: linear-gradient(180deg, rgba(13, 30, 53, 0.92), rgba(10, 24, 40, 0.88));
+  background: linear-gradient(180deg, rgba(10, 31, 61, 0.92), rgba(13, 34, 64, 0.88));
   display: grid;
   align-content: center;
   gap: 1rem;
@@ -187,7 +187,7 @@
 .plan-card,
 .news-card,
 .alert-card {
-  background: rgba(10, 24, 40, 0.88);
+  background: rgba(13, 34, 64, 0.88);
   border: 1px solid var(--border);
   border-radius: 24px;
   box-shadow: var(--shadow-md);
@@ -211,7 +211,7 @@
 }
 
 .hero-panel--accent {
-  background: linear-gradient(180deg, rgba(13, 30, 53, 0.92), rgba(10, 24, 40, 0.88));
+  background: linear-gradient(180deg, rgba(10, 31, 61, 0.92), rgba(13, 34, 64, 0.88));
 }
 
 .dashboard-grid,
@@ -245,7 +245,7 @@
 }
 
 .budget-rail__fill--sage {
-  background: var(--sage);
+  background: var(--teal);
 }
 
 .budget-rail__fill--yellow {
@@ -253,6 +253,18 @@
 }
 
 .budget-rail__fill--orange {
+  background: var(--orange);
+}
+
+.budget-fill-ok {
+  background: var(--teal);
+}
+
+.budget-fill-warning {
+  background: var(--yellow);
+}
+
+.budget-fill-danger {
   background: var(--orange);
 }
 
@@ -284,8 +296,8 @@
 }
 
 .chat-bubble--assistant {
-  background: rgba(13, 30, 53, 0.92);
-  border: 1px solid rgba(137, 196, 225, 0.18);
+  background: rgba(10, 31, 61, 0.92);
+  border: 1px solid rgba(125, 200, 232, 0.22);
 }
 
 .chat-bubble--user {
@@ -358,7 +370,7 @@
 }
 
 .plan-card--cheapest {
-  border: 1.5px solid var(--sage);
+  border: 1.5px solid var(--teal);
 }
 
 .plan-stats {
@@ -382,6 +394,17 @@
   text-align: left;
 }
 
+.dashboard-budget-empty {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+}
+
+.route-card-best {
+  border-left: 3px solid var(--teal);
+  border-radius: 0 12px 12px 0;
+}
+
 .error-shell {
   min-height: calc(100vh - 220px);
   display: grid;
@@ -393,7 +416,7 @@
   width: min(100%, 720px);
   padding: 2rem;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(13, 30, 53, 0.94), rgba(10, 24, 40, 0.92));
+  background: linear-gradient(180deg, rgba(10, 31, 61, 0.94), rgba(13, 34, 64, 0.92));
   border: 1px solid rgba(212, 174, 58, 0.28);
   box-shadow: var(--shadow-lg);
   display: grid;
@@ -463,5 +486,18 @@
 
   .breakdown-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .surface-panel,
+  .hero-panel,
+  .metric-card,
+  .plan-card,
+  .auth-panel,
+  .onboarding-card,
+  .preview-card,
+  .error-card {
+    padding: 12px;
   }
 }

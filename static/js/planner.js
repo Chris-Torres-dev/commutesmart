@@ -2,12 +2,13 @@ const plansGrid = document.getElementById("plans-grid");
 const sortButtons = document.querySelectorAll("[data-sort-buttons] .sort-button");
 const planForm = document.getElementById("plan-form");
 const planSubmit = document.getElementById("plan-submit");
-const loadingState = document.getElementById("loading");
+const loadingState = document.getElementById("plan-loading");
 
 if (planForm && planSubmit && loadingState) {
   planForm.addEventListener("submit", () => {
     planSubmit.textContent = "Finding your best plan...";
     planSubmit.disabled = true;
+    planSubmit.style.opacity = "0.8";
     loadingState.style.display = "block";
   });
 }

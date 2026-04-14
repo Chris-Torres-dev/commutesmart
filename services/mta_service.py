@@ -64,25 +64,7 @@ _mta_cache: dict[str, tuple[Any, float]] = {}
 
 
 def _fallback_alerts(mode: str) -> dict[str, Any]:
-    if mode == "subway":
-        alerts = [
-            {
-                "line": "system",
-                "headline": "Live subway data unavailable",
-                "detail": "We'll lean on your saved route and fallback estimates for now.",
-                "severity": "info",
-            }
-        ]
-    else:
-        alerts = [
-            {
-                "line": "bus",
-                "headline": "Bus feed unavailable",
-                "detail": "Bus timing is in fallback mode right now.",
-                "severity": "info",
-            }
-        ]
-    return {"alerts": alerts, "source": "fallback", "updated_at": time.time()}
+    return {"alerts": [], "source": "fallback", "updated_at": time.time()}
 
 
 def _get_cached(cache_key: str, duration: int = 60) -> Any | None:

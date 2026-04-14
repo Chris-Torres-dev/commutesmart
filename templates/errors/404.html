@@ -3,12 +3,12 @@
 {% block title %}Page Not Found | CommuteSmart{% endblock %}
 
 {% block content %}
-  <section class="error-shell">
-    <article class="error-card">
-      <p class="label">404 Error</p>
-      <h1>This stop doesn't exist. Let's get you back on track.</h1>
-      <p class="hero-text">The page you're looking for isn't on this route, but your commute planner is still one click away.</p>
-      <a class="btn-primary error-cta" href="{{ url_for('auth.landing') }}">Go home</a>
-    </article>
-  </section>
+  <div class="error-shell">
+    <div class="error-card">
+      <div style="font-size:64px; font-weight:800; color:var(--baby-blue);">404</div>
+      <h2 style="color:var(--text-primary); margin-bottom:1rem;">This stop doesn't exist.</h2>
+      <p style="color:var(--text-muted); margin-bottom:2rem;">Let's get you back on track.</p>
+      <a href="{{ url_for('auth.landing') }}" class="btn-primary btn-inline error-cta" style="display:inline-block; padding:12px 32px;">Go home</a>
+    </div>
+  </div>
 {% endblock %}

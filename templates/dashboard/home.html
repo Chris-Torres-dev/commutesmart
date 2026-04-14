@@ -22,7 +22,7 @@
     {% endif %}
 
     <div class="hero-duo">
-      <article class="hero-panel">
+      <article class="hero-panel route-card-best">
         <p class="label">Cheapest</p>
         <h2>{{ cheapest.plan_name }}</h2>
         <p class="big-number savings-text">${{ "%.0f"|format(cheapest.weekly_cost) }}/week</p>
@@ -38,17 +38,26 @@
 
     <div class="dashboard-grid">
       <section class="surface-panel">
-        <div class="panel-header">
-          <div>
-            <p class="label">Budget Bar</p>
-            <h2>${{ "%.0f"|format(finance.metrics.week) }} of ${{ "%.0f"|format(finance.budget) }} this week</h2>
+        {% if current_user.is_authenticated %}
+          <div class="panel-header">
+            <div>
+              <p class="label">Budget Bar</p>
+              <h2>${{ "%.0f"|format(finance.metrics.week) }} of ${{ "%.0f"|format(finance.budget) }} this week</h2>
+            </div>
+            <span class="badge badge-{{ budget_tone }}">{{ finance.budget_status.percent }}% used</span>
           </div>
-          <span class="badge badge-{{ budget_tone }}">{{ finance.budget_status.percent }}% used</span>
-        </div>
-        <div class="budget-rail">
-          <span class="budget-rail__fill budget-rail__fill--{{ budget_tone }}" style="width: {{ [finance.budget_status.percent, 100]|min }}%;"></span>
-        </div>
-        <p class="section-copy">${{ "%.0f"|format(finance.budget_status.remaining) }} left before you hit your weekly target.</p>
+          <div class="budget-rail">
+            <span class="budget-rail__fill budget-rail__fill--{{ budget_tone }}" style="width: {{ [finance.budget_status.percent, 100]|min }}%;"></span>
+          </div>
+          <p class="section-copy">${{ "%.0f"|format(finance.budget_status.remaining) }} left before you hit your weekly target.</p>
+        {% else %}
+          <div class="dashboard-budget-empty">
+            <p class="label">Budget Bar</p>
+            <h2>Track your weekly commute budget</h2>
+            <p class="section-copy">Create an account to track your weekly commute budget.</p>
+            <a href="{{ url_for('auth.signup') }}" class="btn-primary btn-inline">Start tracking</a>
+          </div>
+        {% endif %}
       </section>
 
       <section class="surface-panel">
@@ -58,17 +67,18 @@
             <h2>Relevant service notes</h2>
           </div>
         </div>
-        <div class="alert-stack">
-          {% for alert in (mta_snapshot.subway_alerts + mta_snapshot.bus_alerts)[:4] %}
-            <article class="alert-card">
-              <span class="badge badge-blue">{{ alert.line }}</span>
-              <h3>{{ alert.headline }}</h3>
-              <p class="section-copy">{{ alert.detail }}</p>
-            </article>
-          {% else %}
-            <p class="section-copy">We couldn't load that right now, so your saved plan is standing by.</p>
-          {% endfor %}
-        </div>
+        {% set all_alerts = (mta_snapshot.subway_alerts + mta_snapshot.bus_alerts)[:4] %}
+        {% if all_alerts %}
+          <div class="alert-stack">
+            {% for alert in all_alerts %}
+              <article class="alert-card">
+                <span class="badge badge-blue">{{ alert.line }}</span>
+                <h3>{{ alert.headline }}</h3>
+                <p class="section-copy">{{ alert.detail }}</p>
+              </article>
+            {% endfor %}
+          </div>
+        {% endif %}
       </section>
 
       <section class="surface-panel surface-panel--wide">
@@ -102,7 +112,7 @@
         <div class="news-grid">
           {% for article in news_cards[:5] %}
             <a class="news-card" href="{{ article.url }}" target="_blank" rel="noreferrer">
-              <span class="badge badge-gray">{{ article.published_at or "Resource" }}</span>
+              <span class="badge badge-gray">{{ article.published_at | format_date or "Resource" }}</span>
               <h3>{{ article.title }}</h3>
               <p class="section-copy">{{ article.summary }}</p>
             </a>
@@ -151,12 +161,12 @@
           const payload = await response.json();
           const assistantBubble = document.createElement("article");
           assistantBubble.className = "chat-bubble chat-bubble--assistant";
-          assistantBubble.textContent = payload.reply || payload.reason || "I’d stick with your cheapest route for now.";
+          assistantBubble.textContent = payload.reply || payload.reason || "I'd stick with your cheapest route for now.";
           chatThread.appendChild(assistantBubble);
         } catch (error) {
           const fallbackBubble = document.createElement("article");
           fallbackBubble.className = "chat-bubble chat-bubble--assistant";
-          fallbackBubble.textContent = "We couldn't load that right now, here's what we know instead: your cheapest saved route is still the safest bet.";
+          fallbackBubble.textContent = "Your cheapest saved route is still a solid option today.";
           chatThread.appendChild(fallbackBubble);
         }
       });

@@ -3,12 +3,12 @@
 {% block title %}Server Error | CommuteSmart{% endblock %}
 
 {% block content %}
-  <section class="error-shell">
-    <article class="error-card">
-      <p class="label">500 Error</p>
-      <h1>We hit a signal issue on our side.</h1>
-      <p class="hero-text">Your data is safe. Give the app a moment, then head back to your dashboard or planner.</p>
-      <a class="btn-primary error-cta" href="{{ url_for('auth.landing') }}">Go home</a>
-    </article>
-  </section>
+  <div class="error-shell">
+    <div class="error-card">
+      <div style="font-size:64px; font-weight:800; color:var(--baby-blue);">500</div>
+      <h2 style="color:var(--text-primary); margin-bottom:1rem;">Something went wrong on our end.</h2>
+      <p style="color:var(--text-muted); margin-bottom:2rem;">It's not you, it's the train.</p>
+      <a href="{{ url_for('auth.landing') }}" class="btn-primary btn-inline error-cta" style="display:inline-block; padding:12px 32px;">Try again</a>
+    </div>
+  </div>
 {% endblock %}

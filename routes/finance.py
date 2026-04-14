@@ -31,28 +31,9 @@ def _serialize_db_logs() -> list[dict]:
     return serialized
 
 
-def _mock_logs(profile_data: dict) -> list[dict]:
-    budget = float(profile_data.get("weekly_budget") or 34)
-    base = max(10.0, min(Config.OMNY_WEEKLY_CAP, budget - 3))
-    week_start = current_week_start()
-    logs = []
-    for offset in range(7, -1, -1):
-        amount = round(base + ((offset % 3) - 1) * 2.5, 2)
-        logs.append(
-            {
-                "week_start_date": (week_start - timedelta(weeks=offset)).isoformat(),
-                "amount_spent": max(6.0, amount),
-                "transport_mode": "subway",
-                "notes": "Mock data until you add your own spend.",
-                "created_at": date.today().isoformat(),
-            }
-        )
-    return logs
-
-
 def get_spend_logs(profile_data: dict) -> list[dict]:
     logs = _serialize_db_logs() if current_user.is_authenticated else get_guest_spend_logs()
-    return logs or _mock_logs(profile_data)
+    return logs or []
 
 
 def build_finance_payload(profile_data: dict) -> dict:
@@ -86,6 +67,8 @@ def build_finance_payload(profile_data: dict) -> dict:
     semester_total = round(sum(point["amount"] for point in weekly_points), 2)
     current_floor = min(Config.OMNY_WEEKLY_CAP, Config.OMNY_PER_RIDE * int(profile_data.get("days_per_week") or 4) * int(profile_data.get("trips_per_day") or 2))
     saved = round(max(0.0, (budget - current_floor) * 16), 2)
+    if not current_user.is_authenticated and not logs:
+        saved = 0.0
 
     return {
         "metrics": {

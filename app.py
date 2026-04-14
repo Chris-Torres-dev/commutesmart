@@ -15,6 +15,7 @@ from routes.dashboard import dashboard_bp
 from routes.finance import finance_bp
 from routes.onboarding import onboarding_bp
 from routes.planner import planner_bp
+from services.news_service import format_news_date
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -34,6 +35,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(planner_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(api_bp)
+    app.jinja_env.filters["format_date"] = format_news_date
 
     @app.context_processor
     def inject_globals():
@@ -51,10 +53,31 @@ def create_app(test_config: dict | None = None) -> Flask:
     def robots():
         return app.send_static_file("robots.txt")
 
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdnjs.cloudflare.com; "
+            "font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self'"
+        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
     @app.errorhandler(RateLimitExceeded)
     def rate_limit_handler(e):
         back_url = request.referrer or url_for("auth.landing")
         return render_template("errors/429.html", back_url=back_url), 429
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template("errors/403.html"), 403
 
     @app.errorhandler(404)
     def not_found(e):

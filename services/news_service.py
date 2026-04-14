@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import Any
 
 from config import Config
@@ -15,6 +16,14 @@ _news_last_fetched: float | None = None
 
 def _fallback_news() -> list[dict[str, Any]]:
     return Config.FALLBACK_NEWS
+
+
+def format_news_date(iso_string: str | None) -> str:
+    try:
+        dt = datetime.strptime(str(iso_string), "%Y-%m-%dT%H:%M:%SZ")
+        return dt.strftime("%b %d, %Y")
+    except (TypeError, ValueError):
+        return ""
 
 
 def get_news() -> list[dict[str, Any]]:
