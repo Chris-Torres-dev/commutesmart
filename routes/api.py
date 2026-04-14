@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
+from extensions import limiter
 from models import db
 from models.spend_log import SpendLog
 from routes import (
@@ -19,16 +20,17 @@ from routes.finance import build_export_summary, build_finance_payload
 from routes.planner import build_commute_plans
 from services.ai_service import answer_commute_question
 
-api_bp = Blueprint("api", __name__, url_prefix="/api")
+api_bp = Blueprint("api", __name__)
 
 
-@api_bp.route("/ping")
+@api_bp.route("/api/ping")
 def ping():
     return jsonify({"status": "ok"})
 
 
-@api_bp.route("/chat", methods=["POST"])
+@api_bp.route("/api/chat", methods=["POST"])
 @login_or_guest_required
+@limiter.limit("10 per minute")
 def chat():
     payload = request.get_json(silent=True) or {}
     message = payload.get("message", "").strip()
@@ -38,7 +40,7 @@ def chat():
     return jsonify(response)
 
 
-@api_bp.route("/budget", methods=["POST"])
+@api_bp.route("/api/budget", methods=["POST"])
 @login_or_guest_required
 def update_budget():
     payload = request.get_json(silent=True) or {}
@@ -55,7 +57,7 @@ def update_budget():
     return jsonify({"ok": True, "budget": budget, "finance": finance})
 
 
-@api_bp.route("/spend-log", methods=["POST"])
+@api_bp.route("/api/spend-log", methods=["POST"])
 @login_or_guest_required
 def add_spend_log():
     payload = request.get_json(silent=True) or {}
@@ -89,9 +91,15 @@ def add_spend_log():
     return jsonify({"ok": True, "finance": finance})
 
 
-@api_bp.route("/export")
+@api_bp.route("/api/export")
 @login_or_guest_required
 def export_summary():
     profile = get_onboarding_data()
     finance = build_finance_payload(profile)
     return jsonify({"text": build_export_summary(profile, finance)})
+
+
+@api_bp.route("/health")
+@limiter.exempt
+def health():
+    return {"status": "ok", "app": "CommuteSmart", "version": "1.0"}, 200

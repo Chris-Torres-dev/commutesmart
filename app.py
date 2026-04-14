@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from flask import Flask
+import os
+
+from flask import Flask, render_template, request, session, url_for
+from flask_limiter.errors import RateLimitExceeded
 
 from config import Config, missing_env_keys
+from extensions import csrf, limiter
 from models import db, login_manager
 from routes import get_active_user, is_guest_mode
 from routes.api import api_bp
@@ -21,6 +25,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_app(app)
     login_manager.init_app(app)
+    limiter.init_app(app)
+    csrf.init_app(app)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(onboarding_bp)
@@ -37,6 +43,27 @@ def create_app(test_config: dict | None = None) -> Flask:
             "missing_api_keys": missing_env_keys(),
         }
 
+    @app.before_request
+    def make_session_permanent():
+        session.permanent = True
+
+    @app.route("/robots.txt")
+    def robots():
+        return app.send_static_file("robots.txt")
+
+    @app.errorhandler(RateLimitExceeded)
+    def rate_limit_handler(e):
+        back_url = request.referrer or url_for("auth.landing")
+        return render_template("errors/429.html", back_url=back_url), 429
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return render_template("errors/500.html"), 500
+
     with app.app_context():
         db.create_all()
 
@@ -47,4 +74,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=app.config.get("DEBUG", False))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

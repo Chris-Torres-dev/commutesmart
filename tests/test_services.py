@@ -14,15 +14,61 @@ from services.ai_service import get_recommendation
 from services.car_service import calculate_car_cost
 from services.citibike_service import get_station_status
 from services.maps_service import get_route
-from services.mta_service import get_subway_alerts
+from services.mta_service import _mta_cache, get_feed_key_for_line, get_line_feed, get_mta_snapshot, get_subway_alerts
 from services.news_service import get_news
 
 
 class ServiceTests(unittest.TestCase):
-    def test_mta_service_fallback(self):
-        result = get_subway_alerts()
-        self.assertEqual(result["source"], "fallback")
-        self.assertTrue(result["alerts"])
+    def setUp(self):
+        _mta_cache.clear()
+
+    @patch("services.mta_service.requests.get")
+    def test_mta_service_fallback(self, mock_get):
+        mock_get.side_effect = Exception("feed down")
+        self.assertIsNone(get_subway_alerts())
+        snapshot = get_mta_snapshot(["A"])
+        self.assertEqual(snapshot["source"], "fallback")
+        self.assertTrue(snapshot["subway_alerts"])
+
+    @patch("services.mta_service.requests.get")
+    def test_mta_service_parses_subway_alerts(self, mock_get):
+        class FakeResponse:
+            content = b"fake-feed"
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "entity": [
+                        {
+                            "alert": {
+                                "informedEntity": [{"routeId": "A"}],
+                                "headerText": {"translation": [{"text": "A delays"}]},
+                                "descriptionText": {"translation": [{"text": "Signal trouble"}]},
+                            }
+                        }
+                    ]
+                }
+
+        mock_get.return_value = FakeResponse()
+        result = get_subway_alerts(["A"])
+        self.assertEqual(result["source"], "mta_json")
+        self.assertEqual(result["alerts"][0]["line"], "A")
+
+    @patch("services.mta_service.requests.get")
+    def test_mta_line_feed_detection(self, mock_get):
+        class FakeResponse:
+            content = b"fake-feed"
+
+            def raise_for_status(self):
+                return None
+
+        mock_get.return_value = FakeResponse()
+        self.assertEqual(get_feed_key_for_line("Q"), "NQRW")
+        result = get_line_feed("Q")
+        self.assertEqual(result["feed_key"], "NQRW")
+        self.assertEqual(result["bytes"], len(b"fake-feed"))
 
     def test_maps_service_fallback(self):
         result = get_route("Brooklyn, NY", "Baruch College, New York, NY", "transit")

@@ -27,6 +27,7 @@ def _budget_tone(percent: float) -> str:
 @login_or_guest_required
 def home():
     data = get_onboarding_data()
+    subway_lines = data.get("subway_lines") or []
 
     try:
         plans = build_commute_plans({**data, "origin": data.get("home_address"), "destination": data.get("school_address")})
@@ -45,9 +46,9 @@ def home():
     fastest = min(plans, key=lambda plan: plan.get("duration_minutes", float("inf")))
 
     try:
-        mta_snapshot = get_mta_snapshot()
+        mta_snapshot = get_mta_snapshot(subway_lines)
     except Exception:
-        mta_snapshot = {"subway_alerts": [], "bus_alerts": [], "source": "fallback"}
+        mta_snapshot = {"subway_alerts": [], "bus_alerts": [], "line_feeds": [], "source": "fallback"}
 
     try:
         news_cards = get_news()[:5]

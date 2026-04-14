@@ -3,11 +3,20 @@ from __future__ import annotations
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_user, logout_user
 
+from extensions import limiter
 from models import db
 from models.user import User
 from routes import get_onboarding_data, persist_profile_for_user
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def validate_password(password: str) -> str | None:
+    if len(password) < 8:
+        return "Password must be at least 8 characters and contain a number"
+    if not any(char.isdigit() for char in password):
+        return "Password must be at least 8 characters and contain a number"
+    return None
 
 
 @auth_bp.route("/")
@@ -17,60 +26,76 @@ def landing():
     return render_template("auth/landing.html")
 
 
-@auth_bp.route("/login", methods=["GET", "POST"])
+@auth_bp.route("/login", methods=["GET"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.home"))
 
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        user = User.query.filter_by(email=email).first()
-
-        if user and user.check_password(password):
-            login_user(user, remember=True)
-            session.pop("guest_mode", None)
-            flash("Welcome back. Your commute plan is ready.", "success")
-            return redirect(url_for("dashboard.home"))
-
-        flash("That login didn't match our records. Try again.", "warning")
-
     return render_template("auth/login.html")
 
 
-@auth_bp.route("/signup", methods=["GET", "POST"])
+@auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute")
+def login_submit():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard.home"))
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    user = User.query.filter_by(email=email).first()
+
+    if user and user.check_password(password):
+        login_user(user, remember=True)
+        session.pop("guest_mode", None)
+        flash("Welcome back. Your commute plan is ready.", "success")
+        return redirect(url_for("dashboard.home"))
+
+    flash("That login didn't match our records. Try again.", "warning")
+    return render_template("auth/login.html"), 200
+
+
+@auth_bp.route("/signup", methods=["GET"])
 def signup():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.home"))
 
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        confirm_password = request.form.get("confirm_password", "")
-
-        if not email or "@" not in email:
-            flash("Add a valid email so we can save your plans.", "warning")
-        elif len(password) < 8:
-            flash("Use at least 8 characters for your password.", "warning")
-        elif password != confirm_password:
-            flash("Your passwords didn't match. Give that another shot.", "warning")
-        elif User.query.filter_by(email=email).first():
-            flash("That email already has an account. Log in instead.", "warning")
-        else:
-            user = User(email=email, is_guest=False)
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-            login_user(user, remember=True)
-
-            if session.get("onboarding_data"):
-                persist_profile_for_user(user, get_onboarding_data())
-            session.pop("guest_mode", None)
-
-            flash("Account created. Let's finish your commute setup.", "success")
-            return redirect(url_for("onboarding.step", step=1))
-
     return render_template("auth/signup.html")
+
+
+@auth_bp.route("/signup", methods=["POST"])
+@limiter.limit("5 per minute")
+def signup_submit():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard.home"))
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    confirm_password = request.form.get("confirm_password", "")
+    password_error = validate_password(password)
+
+    if not email or "@" not in email:
+        flash("Add a valid email so we can save your plans.", "warning")
+    elif password_error:
+        flash(password_error, "warning")
+    elif password != confirm_password:
+        flash("Your passwords didn't match. Give that another shot.", "warning")
+    elif User.query.filter_by(email=email).first():
+        flash("That email already has an account. Log in instead.", "warning")
+    else:
+        user = User(email=email, is_guest=False)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        login_user(user, remember=True)
+
+        if session.get("onboarding_data"):
+            persist_profile_for_user(user, get_onboarding_data())
+        session.pop("guest_mode", None)
+
+        flash("Account created. Let's finish your commute setup.", "success")
+        return redirect(url_for("onboarding.step", step=1))
+
+    return render_template("auth/signup.html"), 200
 
 
 @auth_bp.route("/guest")

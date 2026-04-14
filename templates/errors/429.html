@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Too Many Requests | CommuteSmart{% endblock %}
+
+{% block content %}
+  <section class="error-shell">
+    <article class="error-card">
+      <p class="label">Rate Limit</p>
+      <h1>Whoa, slow down! You're moving faster than the A train.</h1>
+      <p class="hero-text">We hit a temporary safety cap on requests. Give it a minute, then jump back in.</p>
+      <a class="btn-primary error-cta" href="{{ back_url }}">Try again in a minute</a>
+    </article>
+  </section>
+{% endblock %}

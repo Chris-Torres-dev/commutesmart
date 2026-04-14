@@ -12,6 +12,15 @@
       <a class="btn-secondary btn-inline" href="{{ url_for('planner.results') }}">Compare all plans</a>
     </div>
 
+    {% if guest_mode and not data.home_address and not data.school_address %}
+      <section class="surface-panel dashboard-empty-state">
+        <p class="label">Get Started</p>
+        <h2>Where do you commute from?</h2>
+        <p class="section-copy">Add your trip details and we'll compare subway, Citi Bike, and car costs for the week ahead.</p>
+        <a href="{{ url_for('planner.results') }}" class="btn-primary btn-inline">Find my commute plan</a>
+      </section>
+    {% endif %}
+
     <div class="hero-duo">
       <article class="hero-panel">
         <p class="label">Cheapest</p>
@@ -77,6 +86,7 @@
           </article>
         </div>
         <form class="chat-form" id="chat-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="text" name="message" placeholder="Should I bike if it rains later?" required>
           <button class="btn-primary btn-inline" type="submit">Ask</button>
         </form>
@@ -119,6 +129,7 @@
   <script>
     const chatForm = document.getElementById("chat-form");
     const chatThread = document.getElementById("chat-thread");
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
 
     if (chatForm && chatThread) {
       chatForm.addEventListener("submit", async (event) => {
@@ -134,7 +145,7 @@
         try {
           const response = await fetch("{{ url_for('api.chat') }}", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken || "" },
             body: JSON.stringify({ message }),
           });
           const payload = await response.json();

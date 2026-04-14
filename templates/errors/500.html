@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error | CommuteSmart{% endblock %}
+
+{% block content %}
+  <section class="error-shell">
+    <article class="error-card">
+      <p class="label">500 Error</p>
+      <h1>We hit a signal issue on our side.</h1>
+      <p class="hero-text">Your data is safe. Give the app a moment, then head back to your dashboard or planner.</p>
+      <a class="btn-primary error-cta" href="{{ url_for('auth.landing') }}">Go home</a>
+    </article>
+  </section>
+{% endblock %}

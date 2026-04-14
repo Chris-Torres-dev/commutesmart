@@ -1,5 +1,16 @@
 const plansGrid = document.getElementById("plans-grid");
 const sortButtons = document.querySelectorAll("[data-sort-buttons] .sort-button");
+const planForm = document.getElementById("plan-form");
+const planSubmit = document.getElementById("plan-submit");
+const loadingState = document.getElementById("loading");
+
+if (planForm && planSubmit && loadingState) {
+  planForm.addEventListener("submit", () => {
+    planSubmit.textContent = "Finding your best plan...";
+    planSubmit.disabled = true;
+    loadingState.style.display = "block";
+  });
+}
 
 if (plansGrid && sortButtons.length) {
   const cards = Array.from(plansGrid.querySelectorAll(".plan-card"));

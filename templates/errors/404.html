@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found | CommuteSmart{% endblock %}
+
+{% block content %}
+  <section class="error-shell">
+    <article class="error-card">
+      <p class="label">404 Error</p>
+      <h1>This stop doesn't exist. Let's get you back on track.</h1>
+      <p class="hero-text">The page you're looking for isn't on this route, but your commute planner is still one click away.</p>
+      <a class="btn-primary error-cta" href="{{ url_for('auth.landing') }}">Go home</a>
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /dashboard
+Disallow: /finance
+Disallow: /api/
+Allow: /
+Allow: /plan

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,12 +25,17 @@ class Config:
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{(BASE_DIR / 'commutesmart.db').as_posix()}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     DEBUG = os.getenv("FLASK_ENV", "development") == "development"
-    MTA_API_KEY = _get_env("MTA_API_KEY")
     GOOGLE_MAPS_API_KEY = _get_env("GOOGLE_MAPS_API_KEY")
     NEWSAPI_KEY = _get_env("NEWSAPI_KEY")
     COLLECT_API_KEY = _get_env("COLLECT_API_KEY")
     OPENAI_API_KEY = _get_env("OPENAI_API_KEY")
     SESSION_COOKIE_NAME = "commutesmart_session"
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = timedelta(seconds=86400)
 
     # MTA fares (as of 2025)
     OMNY_PER_RIDE = 2.90
@@ -68,8 +74,7 @@ class Config:
     DAILY_AI_CALL_LIMIT = 50
     MAPS_CACHE_DURATION = 1800
     MTA_SUBWAY_CACHE_DURATION = 60
-    MTA_BUS_CACHE_DURATION = 30
-    MTA_RETRY_COOLDOWN = 300
+    MTA_BUS_CACHE_DURATION = 60
     CITIBIKE_CACHE_DURATION = 30
     NEWS_CACHE_DURATION = 3600
     GAS_CACHE_DURATION = 21600
@@ -143,7 +148,6 @@ class Config:
 def missing_env_keys() -> list[str]:
     keys = [
         "FLASK_SECRET_KEY",
-        "MTA_API_KEY",
         "GOOGLE_MAPS_API_KEY",
         "NEWSAPI_KEY",
         "COLLECT_API_KEY",

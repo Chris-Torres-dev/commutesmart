@@ -7,6 +7,7 @@ from flask import Blueprint, render_template
 from flask_login import current_user
 
 from config import Config
+from extensions import limiter
 from models.spend_log import SpendLog
 from routes import current_week_start, get_guest_spend_logs, get_onboarding_data, login_or_guest_required
 
@@ -121,6 +122,7 @@ def build_export_summary(profile_data: dict, payload: dict) -> str:
 
 @finance_bp.route("", strict_slashes=False)
 @login_or_guest_required
+@limiter.limit("30 per minute")
 def dashboard():
     data = get_onboarding_data()
     payload = build_finance_payload(data)

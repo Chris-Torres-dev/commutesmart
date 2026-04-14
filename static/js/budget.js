@@ -3,6 +3,7 @@ const spendForm = document.getElementById("spend-form");
 const exportButton = document.getElementById("export-button");
 const exportOutput = document.getElementById("export-output");
 const presetButtons = document.querySelectorAll(".budget-preset");
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
 
 const refreshMetrics = (finance) => {
   const week = document.querySelector("[data-metric-week]");
@@ -37,7 +38,7 @@ if (budgetForm) {
 
     const response = await fetch("/api/budget", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken || "" },
       body: JSON.stringify(payload),
     });
     const data = await response.json();
@@ -57,7 +58,7 @@ if (spendForm) {
 
     const response = await fetch("/api/spend-log", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken || "" },
       body: JSON.stringify(payload),
     });
     const data = await response.json();

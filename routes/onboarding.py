@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from config import Config
+from extensions import limiter
 from routes import (
     DEFAULT_ONBOARDING_DATA,
     budget_recommendation,
@@ -80,6 +81,7 @@ def skip_step(step: int):
 
 @onboarding_bp.route("/<int:step>", methods=["GET", "POST"])
 @login_or_guest_required
+@limiter.limit("60 per minute")
 def step(step: int):
     if step < 1 or step > 5:
         return redirect(url_for("onboarding.step", step=1))

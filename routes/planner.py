@@ -6,6 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from config import Config
+from extensions import limiter
 from models import db
 from models.saved_plan import SavedPlan
 from routes import (
@@ -42,6 +43,8 @@ def _normalize_profile_input() -> dict:
         data["weekly_budget"] = float(values.get("weekly_budget", data["weekly_budget"]))
     if values.get("transport_modes"):
         data["transport_modes"] = request.values.getlist("transport_modes") or data["transport_modes"]
+    if values.get("subway_lines"):
+        data["subway_lines"] = request.values.getlist("subway_lines")
 
     data["origin"] = data.get("home_address") or "Brooklyn, NY"
     data["destination"] = data.get("school_address") or data.get("school_name") or "Hunter College, New York, NY"
@@ -163,6 +166,7 @@ def _sorted_plans(plans: list[dict], sort_by: str) -> list[dict]:
 
 @planner_bp.route("", methods=["GET", "POST"], strict_slashes=False)
 @login_or_guest_required
+@limiter.limit("30 per minute")
 def results():
     profile_data = _normalize_profile_input()
     sort_by = request.values.get("sort", "cheapest")
@@ -170,7 +174,7 @@ def results():
     ordered_plans = _sorted_plans(plans, sort_by)
     cheapest_plan = min(plans, key=lambda plan: plan.get("weekly_cost", float("inf")))
     fastest_plan = min(plans, key=lambda plan: plan.get("duration_minutes", float("inf")))
-    mta_snapshot = get_mta_snapshot()
+    mta_snapshot = get_mta_snapshot(profile_data.get("subway_lines"))
     citibike_snapshot = get_station_status(limit=4) if "bike" in profile_data.get("transport_modes", []) else None
     recommendation = get_recommendation(
         profile_data,

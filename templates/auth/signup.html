@@ -12,7 +12,8 @@
     </div>
 
     <div class="auth-panel">
-      <form method="post" class="form-stack">
+      <form method="post" action="{{ url_for('auth.signup_submit') }}" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <label class="input-group">
           <span>Email</span>
           <input type="email" name="email" placeholder="student@example.edu" required>

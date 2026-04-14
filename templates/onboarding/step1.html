@@ -8,6 +8,7 @@
   <p class="section-copy">Drop in the address you start from most often. Apartment, dorm, or subway-adjacent corner all work.</p>
 
   <form method="post" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <label class="input-group">
       <span>Home address</span>
       <input type="text" name="home_address" value="{{ data.home_address }}" placeholder="123 Main St, Brooklyn, NY" required>

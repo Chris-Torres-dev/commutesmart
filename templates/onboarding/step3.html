@@ -8,6 +8,7 @@
   <p class="section-copy">A quick weekly rhythm helps us estimate fares, time, and budget pressure.</p>
 
   <form method="post" class="form-stack" data-onboarding-preview>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <label class="input-group">
       <span>Days per week</span>
       <input type="range" name="days_per_week" min="1" max="7" value="{{ data.days_per_week }}">

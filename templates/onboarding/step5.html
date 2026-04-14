@@ -8,6 +8,7 @@
   <p class="section-copy">Pick the range that feels real. You can edit it any time on the finance page.</p>
 
   <form method="post" class="form-stack" data-onboarding-preview>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="budget-choice-grid">
       {% for value, text in [("18", "Under $20/week"), ("34", "$20-$35/week"), ("45", "$35-$50/week"), ("75", "$50-$100/week"), ("custom", "Custom")] %}
         <label class="budget-choice">

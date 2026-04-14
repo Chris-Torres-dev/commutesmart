@@ -11,7 +11,8 @@
       </div>
     </div>
 
-    <form class="surface-panel planner-form" method="get">
+    <form class="surface-panel planner-form" id="plan-form" method="get">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <label class="input-group">
         <span>Origin</span>
         <input type="text" name="origin" value="{{ data.origin }}" placeholder="Brooklyn, NY">
@@ -48,8 +49,14 @@
           </label>
         {% endfor %}
       </div>
-      <button class="btn-primary" type="submit">Find my plan</button>
+      <button class="btn-primary" id="plan-submit" type="submit">Find my plan</button>
     </form>
+
+    <div id="loading" style="display:none; text-align:center; padding:2rem;">
+      <p style="color:var(--baby-blue); font-weight:700;">
+        Checking MTA, Citi Bike, and your budget...
+      </p>
+    </div>
 
     <div class="planner-toolbar">
       <div class="planner-toggle" data-sort-buttons>
@@ -108,6 +115,7 @@
           {% endif %}
 
           <form method="post" action="{{ url_for('planner.select_plan') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="plan_data" value='{{ plan|tojson|safe }}'>
             <button class="btn-primary" type="submit">Select this plan</button>
           </form>
