@@ -8,7 +8,7 @@ import time
 from datetime import date
 from typing import Any
 
-from openai import APIConnectionError, APITimeoutError, OpenAI
+from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAI
 
 from config import Config
 from routes import mode_label
@@ -62,6 +62,12 @@ def _rule_based_pick(profile: dict[str, Any], plans: list[dict[str, Any]]) -> di
 
 def _openai_api_key() -> str | None:
     return os.getenv("OPENAI_API_KEY") or Config.OPENAI_API_KEY
+
+
+def _chat_model_candidates() -> list[str]:
+    configured_model = os.getenv("OPENAI_CHAT_MODEL")
+    candidates = [configured_model, "gpt-4o-mini", "gpt-4.1-mini", "gpt-3.5-turbo"]
+    return list(dict.fromkeys([model for model in candidates if model]))
 
 
 def _call_openai_safe(prompt: str, cache_key: str, fallback: dict[str, Any]) -> dict[str, Any]:
@@ -167,33 +173,43 @@ def get_chat_reply(
             messages.append({"role": role, "content": content[:1000]})
     messages.append({"role": "user", "content": user_message})
 
-    try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
-            messages=messages,
-            max_tokens=220,
-            temperature=0.7,
-        )
-        reply = (response.choices[0].message.content or "").strip()
-        if not reply:
+    client = OpenAI(api_key=api_key)
+    last_error: Exception | None = None
+
+    for model_name in _chat_model_candidates():
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                max_tokens=220,
+                temperature=0.7,
+            )
+            reply = (response.choices[0].message.content or "").strip()
+            if reply:
+                return {"reply": reply, "source": "openai"}
+            logger.warning("OpenAI returned an empty reply for chat model %s.", model_name)
+        except (APIConnectionError, APITimeoutError) as exc:  # pragma: no cover - network-dependent
+            logger.error("OpenAI network error: %s", exc)
             return {
-                "reply": "I couldn't get a full GPT response right now. Please try again.",
+                "reply": "I couldn't reach OpenAI right now, so I can't answer reliably at the moment. Please try again in a minute.",
+                "source": "fallback",
+            }
+        except AuthenticationError as exc:  # pragma: no cover - network-dependent
+            logger.error("OpenAI authentication error using model %s: %s", model_name, exc)
+            return {
+                "reply": "I couldn't get a GPT response right now. Please try again once OpenAI is available for this app.",
                 "source": "error",
             }
-        return {"reply": reply, "source": "openai"}
-    except (APIConnectionError, APITimeoutError) as exc:  # pragma: no cover - network-dependent
-        logger.error("OpenAI network error: %s", exc)
-        return {
-            "reply": "I couldn't reach OpenAI right now, so I can't answer reliably at the moment. Please try again in a minute.",
-            "source": "fallback",
-        }
-    except Exception as exc:  # pragma: no cover - network-dependent
-        logger.error("OpenAI chat error: %s", exc)
-        return {
-            "reply": "I couldn't get a GPT response right now. Please try again once OpenAI is available for this app.",
-            "source": "error",
-        }
+        except Exception as exc:  # pragma: no cover - network-dependent
+            last_error = exc
+            logger.error("OpenAI chat error using model %s: %s", model_name, exc)
+
+    if last_error:
+        logger.error("OpenAI chat exhausted all model options: %s", last_error)
+    return {
+        "reply": "I couldn't get a GPT response right now. Please try again once OpenAI is available for this app.",
+        "source": "error",
+    }
 
 
 def answer_commute_question(
