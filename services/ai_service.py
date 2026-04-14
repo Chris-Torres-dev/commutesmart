@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from datetime import date
 from typing import Any
 
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI
 
 from config import Config
 from routes import mode_label
@@ -59,13 +60,18 @@ def _rule_based_pick(profile: dict[str, Any], plans: list[dict[str, Any]]) -> di
     }
 
 
+def _openai_api_key() -> str | None:
+    return os.getenv("OPENAI_API_KEY") or Config.OPENAI_API_KEY
+
+
 def _call_openai_safe(prompt: str, cache_key: str, fallback: dict[str, Any]) -> dict[str, Any]:
     _reset_daily_counter_if_needed()
     cached = _ai_cache.get(cache_key)
     if cached and (time.time() - cached[1]) < Config.AI_CACHE_DURATION:
         return cached[0]
 
-    if not Config.OPENAI_API_KEY:
+    api_key = _openai_api_key()
+    if not api_key:
         return fallback
 
     if _ai_counter["count"] >= DAILY_AI_CALL_LIMIT:
@@ -75,7 +81,7 @@ def _call_openai_safe(prompt: str, cache_key: str, fallback: dict[str, Any]) -> 
     _ai_counter["count"] += 1
 
     try:
-        client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             temperature=0.5,
@@ -123,68 +129,71 @@ def get_recommendation(profile: dict[str, Any], plans: list[dict[str, Any]], con
     return _call_openai_safe(prompt, cache_key, fallback)
 
 
-def rule_based_chat(user_message: str, context: dict[str, Any]) -> str:
-    msg = (user_message or "").lower()
-    home = context.get("home") or "your place"
-    school = context.get("school") or "school"
-    budget = float(context.get("budget") or 34.0)
+def get_chat_reply(
+    user_message: str,
+    context: dict[str, Any],
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, str]:
+    history = history or []
+    methods = context.get("methods") or ["subway"]
+    api_key = _openai_api_key()
 
-    if any(word in msg for word in ["fastest", "quick", "fast"]):
-        return f"Your fastest option from {home} to {school} is usually the subway. Check the MTA alerts above before you leave."
+    if not api_key:
+        logger.error("OpenAI chat unavailable: OPENAI_API_KEY is not configured.")
+        return {
+            "reply": "I can't answer with GPT in this environment yet because OpenAI isn't configured for the app.",
+            "source": "configuration_error",
+        }
 
-    if any(word in msg for word in ["cheap", "cheapest", "save", "budget"]):
-        return f"With a ${budget:.0f}/week budget, OMNY weekly cap at $34 or Citi Bike plus one subway ride usually gives you the best value."
+    system_prompt = (
+        "You are CommuteSmart's AI assistant for NYC students. "
+        "You know NYC subway and bus service, MTA fares, OMNY, MetroCard, Citi Bike, car commuting costs, "
+        "Fair Fares, CUNY ASAP, and common student commute tradeoffs across the city. "
+        "You can answer any commute or transit question, not just preset ones. "
+        "You should feel like a knowledgeable NYC commuter friend: warm, practical, specific, and concise.\n\n"
+        f"Student context: they live near {context.get('home') or 'unknown'}, go to {context.get('school') or 'unknown'}, "
+        f"have a weekly commute budget of ${float(context.get('budget') or 34.0):.2f}, use {', '.join(methods)}, "
+        f"and commute {int(context.get('days_per_week') or 4)} days per week.\n\n"
+        "Use the conversation history for follow-up questions, short references, and pronouns like 'what trains?' or 'is that cheaper?'. "
+        "Answer the exact question asked. Mention uncertainty briefly if exact live data is unavailable, then give the best next-step advice. "
+        "Keep most answers under 4 sentences unless the user asks for more detail."
+    )
 
-    if any(word in msg for word in ["bike", "citi"]):
-        return "Citi Bike monthly is $17.99 per month, so it's strongest when you're within a few miles of campus. Check dock availability before you head out."
-
-    if any(word in msg for word in ["rain", "weather"]):
-        return "On rainy days, stick to the subway if you can. Citi Bike gets uncomfortable fast and surface routes are more likely to drag."
-
-    if any(word in msg for word in ["today", "now", "morning", "rush"]):
-        return "Check the MTA alerts section above for today's service status. During rush hour, giving yourself an extra 10 minutes is the safest move."
-
-    return "Great question! Open the Plan page to compare your route options side by side with real commute costs."
-
-
-def get_chat_reply(user_message: str, context: dict[str, Any]) -> str:
-    _reset_daily_counter_if_needed()
-
-    if _ai_counter["count"] >= DAILY_AI_CALL_LIMIT or not Config.OPENAI_API_KEY:
-        return rule_based_chat(user_message, context)
+    messages = [{"role": "system", "content": system_prompt}]
+    for item in history[-10:]:
+        role = item.get("role")
+        content = str(item.get("content", "")).strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content[:1000]})
+    messages.append({"role": "user", "content": user_message})
 
     try:
-        _ai_counter["count"] += 1
-        client = OpenAI(api_key=Config.OPENAI_API_KEY)
-        methods = context.get("methods") or ["subway"]
-        system_prompt = (
-            "You are CommuteSmart's AI coach for NYC students. "
-            f"You are helping a student who lives near {context.get('home') or 'unknown'} "
-            f"and goes to {context.get('school') or 'unknown'}. "
-            f"Their weekly commute budget is ${float(context.get('budget') or 34.0):.2f}. "
-            f"They use: {', '.join(methods)}. "
-            f"They commute {int(context.get('days_per_week') or 4)} days a week.\n\n"
-            "Answer their specific question directly and concisely. "
-            "Give NYC-specific advice using real subway lines, MTA info, Citi Bike, or car costs. "
-            "Keep answers under 3 sentences. Be friendly, direct, and helpful. "
-            "Never give the same generic response twice - answer the specific question asked. "
-            "If asked about the fastest route, give the fastest. If asked about the cheapest, give the cheapest. "
-            "If you don't know exact real-time data, give your best general advice."
-        )
+        client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            max_tokens=150,
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            messages=messages,
+            max_tokens=220,
             temperature=0.7,
         )
-        reply = response.choices[0].message.content.strip()
-        return reply or rule_based_chat(user_message, context)
+        reply = (response.choices[0].message.content or "").strip()
+        if not reply:
+            return {
+                "reply": "I couldn't get a full GPT response right now. Please try again.",
+                "source": "error",
+            }
+        return {"reply": reply, "source": "openai"}
+    except (APIConnectionError, APITimeoutError) as exc:  # pragma: no cover - network-dependent
+        logger.error("OpenAI network error: %s", exc)
+        return {
+            "reply": "I couldn't reach OpenAI right now, so I can't answer reliably at the moment. Please try again in a minute.",
+            "source": "fallback",
+        }
     except Exception as exc:  # pragma: no cover - network-dependent
         logger.error("OpenAI chat error: %s", exc)
-        return rule_based_chat(user_message, context)
+        return {
+            "reply": "I couldn't get a GPT response right now. Please try again once OpenAI is available for this app.",
+            "source": "error",
+        }
 
 
 def answer_commute_question(
@@ -192,7 +201,7 @@ def answer_commute_question(
     profile: dict[str, Any],
     plans: list[dict[str, Any]] | None = None,
     context: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, str]:
     chat_context = {
         "home": profile.get("home_address") or profile.get("origin") or "unknown",
         "school": profile.get("school_name") or profile.get("school_address") or profile.get("destination") or "unknown",
@@ -200,7 +209,7 @@ def answer_commute_question(
         "methods": profile.get("transport_modes") or ["subway"],
         "days_per_week": profile.get("days_per_week") or 4,
     }
-    return {"reply": get_chat_reply(user_message, chat_context), "source": "fallback" if not Config.OPENAI_API_KEY else "openai"}
+    return get_chat_reply(user_message, chat_context, history=[])
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import unittest
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from flask import template_rendered
@@ -34,6 +35,46 @@ SMOKE_TESTS = [
     "test_budget_bar_renders",
     "test_chart_canvas_renders",
 ]
+
+
+def _fake_chat_reply(messages):
+    last_user_message = ""
+    conversation_text = []
+    for message in messages:
+        if message.get("role") in {"user", "assistant"}:
+            conversation_text.append(str(message.get("content", "")))
+        if message.get("role") == "user":
+            last_user_message = str(message.get("content", ""))
+
+    last_user = last_user_message.lower()
+    history = " ".join(conversation_text).lower()
+
+    if "what trains" in last_user and "times square" in history:
+        return "For Times Square, look for the 1, 2, 3, N, Q, R, W, A, C, E, 7, and the shuttle depending on your transfer."
+    if "fastest route" in last_user:
+        return "The fastest route is usually the subway, especially if you can catch an express train for part of the trip."
+    if "cheapest route" in last_user:
+        return "The cheapest route is usually subway or bus with OMNY capping, since it keeps your weekly cost predictable."
+    if "citi bike" in last_user:
+        return "Citi Bike is worth it when your ride is short and you can avoid extra subway taps during the week."
+    return "The subway is usually your best starting point, and I can narrow it down once I know your route."
+
+
+class _FakeOpenAIChatCompletions:
+    def create(self, **kwargs):
+        reply = _fake_chat_reply(kwargs.get("messages", []))
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=reply))])
+
+
+class _FakeOpenAIChat:
+    def __init__(self):
+        self.completions = _FakeOpenAIChatCompletions()
+
+
+class _FakeOpenAI:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.chat = _FakeOpenAIChat()
 
 
 @contextmanager
@@ -159,6 +200,22 @@ class SmokeTestsV13(unittest.TestCase):
         html = response.get_data(as_text=True)
         return self._extract_csrf_token(html)
 
+    @contextmanager
+    def _mock_openai_chat(self):
+        with (
+            patch("services.ai_service.Config.OPENAI_API_KEY", "test-openai-key"),
+            patch("services.ai_service.OpenAI", _FakeOpenAI),
+        ):
+            yield
+
+    def _post_chat(self, message: str, csrf_token: str):
+        return self.client.post(
+            "/api/chat",
+            json={"message": message},
+            headers={"X-CSRFToken": csrf_token, "Referer": f"{self.base_url}/dashboard"},
+            base_url=self.base_url,
+        )
+
     def test_budget_add_endpoint(self):
         user = self._create_user("budget-add@example.com")
         db.session.add(Profile(user_id=user.id, weekly_budget=34.0, transport_modes=["subway"]))
@@ -250,32 +307,30 @@ class SmokeTestsV13(unittest.TestCase):
     def test_chat_specific_response(self):
         self._set_guest_session()
         csrf_token = self._get_dashboard_csrf()
-        response = self.client.post(
-            "/api/chat",
-            json={"message": "What is the fastest route?"},
-            headers={"X-CSRFToken": csrf_token, "Referer": f"{self.base_url}/dashboard"},
-            base_url=self.base_url,
-        )
-        reply = response.get_json()["reply"]
+        with self._mock_openai_chat():
+            response = self._post_chat("What is the fastest route?", csrf_token)
+        payload = response.get_json()
+        reply = payload["reply"]
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["source"], "openai")
         self.assertIn("fastest", reply.lower())
 
     def test_chat_no_loop(self):
         self._set_guest_session()
         csrf_token = self._get_dashboard_csrf()
-        response_one = self.client.post(
-            "/api/chat",
-            json={"message": "What is the fastest route?"},
-            headers={"X-CSRFToken": csrf_token, "Referer": f"{self.base_url}/dashboard"},
-            base_url=self.base_url,
-        )
-        response_two = self.client.post(
-            "/api/chat",
-            json={"message": "What is the cheapest route?"},
-            headers={"X-CSRFToken": csrf_token, "Referer": f"{self.base_url}/dashboard"},
-            base_url=self.base_url,
-        )
-        self.assertNotEqual(response_one.get_json()["reply"], response_two.get_json()["reply"])
+        with self._mock_openai_chat():
+            response_one = self._post_chat("I need to get to Times Square fast.", csrf_token)
+            response_two = self._post_chat("what trains?", csrf_token)
+
+        payload_one = response_one.get_json()
+        payload_two = response_two.get_json()
+        self.assertEqual(payload_one["source"], "openai")
+        self.assertEqual(payload_two["source"], "openai")
+        self.assertNotEqual(payload_one["reply"], payload_two["reply"])
+        self.assertIn("times square", payload_two["reply"].lower())
+
+        with self.client.session_transaction() as session:
+            self.assertEqual(len(session.get("chat_history", [])), 4)
 
     def test_budget_bar_renders(self):
         self._set_guest_session()

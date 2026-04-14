@@ -58,6 +58,7 @@ def login_submit():
         login_user(user, remember=True)
         session.pop("guest_mode", None)
         session.pop("is_guest", None)
+        session.pop("chat_history", None)
         flash("Welcome back. Your commute plan is ready.", "success")
         return redirect(url_for("dashboard.home"))
 
@@ -110,6 +111,7 @@ def signup_submit():
             persist_profile_for_user(user, get_onboarding_data())
         session.pop("guest_mode", None)
         session.pop("is_guest", None)
+        session.pop("chat_history", None)
 
         flash("Account created. Let's finish your commute setup.", "success")
         return redirect(url_for("onboarding.step", step=1))
@@ -124,6 +126,7 @@ def guest():
 
     session["guest_mode"] = True
     session["is_guest"] = True
+    session.pop("chat_history", None)
     session.setdefault("onboarding_data", get_onboarding_data())
     session.modified = True
     flash("You're in guest mode - save your data by signing up anytime.", "info")
@@ -137,5 +140,6 @@ def logout():
     session.pop("guest_mode", None)
     session.pop("is_guest", None)
     session.pop("onboarding_data", None)
+    session.pop("chat_history", None)
     flash("You're all set. Come back anytime.", "info")
     return redirect(url_for("auth.landing"))

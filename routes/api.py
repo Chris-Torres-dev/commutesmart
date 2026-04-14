@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from flask_login import current_user
 
 from extensions import limiter
@@ -26,11 +26,47 @@ from routes.planner import build_commute_plans
 from services import ai_service
 
 api_bp = Blueprint("api", __name__)
+CHAT_HISTORY_SESSION_KEY = "chat_history"
+MAX_CHAT_HISTORY_MESSAGES = 12
 
 
 def get_current_week_start():
     today = datetime.utcnow().date()
     return today - timedelta(days=today.weekday())
+
+
+def _normalize_chat_message(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _get_chat_history() -> list[dict[str, str]]:
+    raw_history = session.get(CHAT_HISTORY_SESSION_KEY, [])
+    if not isinstance(raw_history, list):
+        return []
+
+    history: list[dict[str, str]] = []
+    for item in raw_history[-MAX_CHAT_HISTORY_MESSAGES:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = str(item.get("content", "")).strip()
+        if role in {"user", "assistant"} and content:
+            history.append({"role": role, "content": content[:1000]})
+    return history
+
+
+def _save_chat_history(user_message: str, assistant_reply: str) -> None:
+    history = _get_chat_history()
+    history.extend(
+        [
+            {"role": "user", "content": user_message[:1000]},
+            {"role": "assistant", "content": assistant_reply[:1000]},
+        ]
+    )
+    session[CHAT_HISTORY_SESSION_KEY] = history[-MAX_CHAT_HISTORY_MESSAGES:]
+    session.modified = True
 
 
 @api_bp.route("/api/ping")
@@ -43,12 +79,12 @@ def ping():
 @limiter.limit("10 per minute")
 def chat():
     payload = request.get_json(silent=True) or {}
-    user_message = sanitize(payload.get("message", "")).strip()
+    user_message = _normalize_chat_message(payload.get("message", ""))
     error = validate_input(user_message, 500, "Message")
     if error:
         return jsonify({"ok": False, "error": error}), 400
     if not user_message:
-        return {"reply": "What would you like to know about your commute?"}, 200
+        return {"reply": "What would you like to know about your commute?", "source": "system"}, 200
 
     context = {
         "home": "unknown",
@@ -82,8 +118,13 @@ def chat():
             }
         )
 
-    reply = ai_service.get_chat_reply(user_message, context)
-    return {"reply": reply}, 200
+    history = _get_chat_history()
+    result = ai_service.get_chat_reply(user_message, context, history=history)
+    reply = result.get("reply") or "I couldn't get a response right now."
+    source = result.get("source", "error")
+    if source == "openai":
+        _save_chat_history(user_message, reply)
+    return {"reply": reply, "source": source}, 200
 
 
 @api_bp.route("/api/budget", methods=["POST"])
