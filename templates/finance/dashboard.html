@@ -11,24 +11,50 @@
       </div>
     </div>
 
-    <div class="metric-grid">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:20px;">
       <article class="metric-card">
         <p class="label">This week</p>
-        <h2 data-metric-week>${{ "%.0f"|format(finance.metrics.week) }}</h2>
+        <h2 data-metric-week style="color:var(--baby-blue);">${{ "%.2f"|format(weekly_data[-1].amount if weekly_data else 0) }}</h2>
       </article>
       <article class="metric-card">
-        <p class="label">This month</p>
-        <h2 data-metric-month>${{ "%.0f"|format(finance.metrics.month) }}</h2>
-      </article>
-      <article class="metric-card">
-        <p class="label">This semester</p>
-        <h2 data-metric-semester>${{ "%.0f"|format(finance.metrics.semester) }}</h2>
+        <p class="label">Total spent</p>
+        <h2 data-metric-month style="color:var(--baby-blue);">${{ "%.2f"|format(total_spent) }}</h2>
       </article>
       <article class="metric-card metric-card--sage">
-        <p class="label">Saved vs no app</p>
-        <h2 data-metric-saved>${{ "%.0f"|format(finance.metrics.saved) }}</h2>
+        <p class="label">You saved</p>
+        <h2 data-metric-saved style="color:var(--sage);">${{ "%.2f"|format(total_saved) }}</h2>
+      </article>
+      <article class="metric-card">
+        <p class="label">Semester total</p>
+        <h2 data-metric-semester style="color:var(--baby-blue);">${{ "%.2f"|format(semester_spent) }}</h2>
       </article>
     </div>
+
+    <section class="surface-panel" style="margin-bottom:16px; padding:16px;">
+      <div class="section-title">Weekly spending - last 8 weeks</div>
+      {% if is_guest %}
+        <p style="color:var(--text-muted); font-size:13px; text-align:center; padding:2rem 0;">
+          Create an account to see your spending history here.
+        </p>
+      {% else %}
+        <div style="position:relative; height:220px;">
+          <canvas id="weeklyChart"></canvas>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="surface-panel" style="margin-bottom:16px; padding:16px;">
+      <div class="section-title">Monthly trend - last 6 months</div>
+      {% if is_guest %}
+        <p style="color:var(--text-muted); font-size:13px; text-align:center; padding:2rem 0;">
+          Create an account to track your monthly spending trend.
+        </p>
+      {% else %}
+        <div style="position:relative; height:200px;">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      {% endif %}
+    </section>
 
     <div class="finance-grid">
       <section class="surface-panel">
@@ -93,26 +119,6 @@
         </form>
       </section>
 
-      <section class="surface-panel surface-panel--wide">
-        <div class="panel-header">
-          <div>
-            <p class="label">Weekly bars</p>
-            <h2>Last 8 weeks vs budget</h2>
-          </div>
-        </div>
-        <canvas id="weekly-chart" height="180"></canvas>
-      </section>
-
-      <section class="surface-panel surface-panel--wide">
-        <div class="panel-header">
-          <div>
-            <p class="label">Monthly trend</p>
-            <h2>Last 6 months</h2>
-          </div>
-        </div>
-        <canvas id="monthly-chart" height="180"></canvas>
-      </section>
-
       <section class="surface-panel">
         <div class="panel-header">
           <div>
@@ -127,6 +133,8 @@
               <h3>${{ "%.2f"|format(log.amount_spent) }}</h3>
               <p class="section-copy">{{ log.notes or "Commute expense logged." }}</p>
             </article>
+          {% else %}
+            <p class="section-copy">Add your first commute expense to start building your history.</p>
           {% endfor %}
         </div>
       </section>
@@ -143,11 +151,109 @@
       </section>
     </div>
   </section>
-
-  <script id="finance-data" type="application/json">{{ finance|tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
-  <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+  {% if not is_guest %}
+    <script>
+      const weeklyLabels = {{ weekly_data | map(attribute='label') | list | tojson }};
+      const weeklyAmounts = {{ weekly_data | map(attribute='amount') | list | tojson }};
+      const monthlyLabels = {{ monthly_data | map(attribute='label') | list | tojson }};
+      const monthlyAmounts = {{ monthly_data | map(attribute='amount') | list | tojson }};
+      const weeklyBudget = {{ budget | tojson }};
+
+      const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `$${ctx.parsed.y.toFixed(2)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: "#1A3A5C" },
+            ticks: { color: "#4A7090", font: { family: "Nunito", size: 11 } },
+          },
+          y: {
+            grid: { color: "#1A3A5C" },
+            ticks: {
+              color: "#4A7090",
+              font: { family: "Nunito", size: 11 },
+              callback: (val) => `$${val}`,
+            },
+            beginAtZero: true,
+          },
+        },
+      };
+
+      new Chart(document.getElementById("weeklyChart"), {
+        type: "bar",
+        data: {
+          labels: weeklyLabels,
+          datasets: [
+            {
+              data: weeklyAmounts,
+              backgroundColor: weeklyAmounts.map((amount) =>
+                amount === 0 ? "#1A3A5C" :
+                amount <= weeklyBudget * 0.6 ? "#4DB89A" :
+                amount <= weeklyBudget ? "#D4AE3A" : "#C86030"
+              ),
+              borderRadius: 6,
+              borderSkipped: false,
+            },
+            {
+              type: "line",
+              data: Array(weeklyLabels.length).fill(weeklyBudget),
+              borderColor: "#C86030",
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+              label: "Budget",
+            },
+          ],
+        },
+        options: {
+          ...chartDefaults,
+          plugins: {
+            ...chartDefaults.plugins,
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if (ctx.datasetIndex === 1) return `Budget: $${weeklyBudget}`;
+                  return `Spent: $${ctx.parsed.y.toFixed(2)}`;
+                },
+              },
+            },
+          },
+        },
+      });
+
+      new Chart(document.getElementById("monthlyChart"), {
+        type: "line",
+        data: {
+          labels: monthlyLabels,
+          datasets: [
+            {
+              data: monthlyAmounts,
+              borderColor: "#7DC8E8",
+              borderWidth: 2.5,
+              pointBackgroundColor: "#7DC8E8",
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              backgroundColor: "rgba(125, 200, 232, 0.08)",
+              tension: 0.3,
+            },
+          ],
+        },
+        options: chartDefaults,
+      });
+    </script>
+  {% endif %}
   <script src="{{ url_for('static', filename='js/budget.js') }}"></script>
 {% endblock %}

@@ -36,30 +36,55 @@
       </article>
     </div>
 
-    <div class="dashboard-grid">
-      <section class="surface-panel">
-        {% if current_user.is_authenticated %}
-          <div class="panel-header">
-            <div>
-              <p class="label">Budget Bar</p>
-              <h2>${{ "%.0f"|format(finance.metrics.week) }} of ${{ "%.0f"|format(finance.budget) }} this week</h2>
-            </div>
-            <span class="badge badge-{{ budget_tone }}">{{ finance.budget_status.percent }}% used</span>
-          </div>
-          <div class="budget-rail">
-            <span class="budget-rail__fill budget-rail__fill--{{ budget_tone }}" style="width: {{ [finance.budget_status.percent, 100]|min }}%;"></span>
-          </div>
-          <p class="section-copy">${{ "%.0f"|format(finance.budget_status.remaining) }} left before you hit your weekly target.</p>
-        {% else %}
-          <div class="dashboard-budget-empty">
-            <p class="label">Budget Bar</p>
-            <h2>Track your weekly commute budget</h2>
-            <p class="section-copy">Create an account to track your weekly commute budget.</p>
-            <a href="{{ url_for('auth.signup') }}" class="btn-primary btn-inline">Start tracking</a>
-          </div>
-        {% endif %}
-      </section>
+    <div style="margin-bottom: 16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:11px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--teal);">
+          Budget Bar
+        </span>
+        <span style="font-size:12px; color:var(--text-muted);" id="budget-label">
+          $0 of ${{ "%.2f"|format(finance.budget) }} this week
+        </span>
+      </div>
 
+      <div style="background:var(--bg-card); border-radius:20px; height:10px; overflow:hidden; margin-bottom:8px;">
+        <div id="budget-bar-fill"
+             style="height:100%; width:0%; border-radius:20px; background:var(--teal); transition:width 0.4s ease;">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <input type="number" id="spend-input"
+               placeholder="$ spent"
+               min="0" max="999" step="0.50"
+               style="width:90px; padding:6px 10px; border-radius:8px;
+                      background:var(--bg-input); border:1px solid var(--border);
+                      color:var(--text-primary); font-size:13px; font-weight:700;">
+
+        <button onclick="addSpend()"
+                style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:800;
+                       background:var(--teal); color:#060E1A; border:none; cursor:pointer;">
+          + Add
+        </button>
+
+        <button onclick="resetBudget()"
+                style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700;
+                       background:transparent; border:1px solid var(--border);
+                       color:var(--text-muted); cursor:pointer;">
+          Reset
+        </button>
+
+        <button onclick="deleteLastEntry()"
+                style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700;
+                       background:transparent; border:1px solid var(--orange);
+                       color:var(--orange); cursor:pointer;">
+          &#x2715; Delete last
+        </button>
+
+        <span style="font-size:11px; color:var(--text-muted);" id="budget-remaining"></span>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
       <section class="surface-panel">
         <div class="panel-header">
           <div>
@@ -88,16 +113,15 @@
             <h2>Ask the AI commute check-in</h2>
           </div>
         </div>
-        <div class="chat-thread" id="chat-thread">
-          <article class="chat-bubble chat-bubble--assistant">
-            <strong>{{ recommendation.best_plan }}</strong>
-            <p>{{ recommendation.reason }}</p>
-            <p>{{ recommendation.tip }}</p>
-          </article>
+        <div class="chat-thread" id="chat-messages">
+          <div style="margin: 6px 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 600; max-width: 85%; line-height: 1.5; background:#0A1828; color:var(--text-primary); margin-right:auto;">
+            <strong>{{ recommendation.best_plan }}</strong><br>
+            {{ recommendation.reason }} {{ recommendation.tip }}
+          </div>
         </div>
-        <form class="chat-form" id="chat-form">
+        <form class="chat-form" id="chat-form" onsubmit="event.preventDefault(); sendChat();">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-          <input type="text" name="message" placeholder="Should I bike if it rains later?" required>
+          <input type="text" id="chat-input" name="message" placeholder="Should I bike if it rains later?" required>
           <button class="btn-primary btn-inline" type="submit">Ask</button>
         </form>
       </section>
@@ -137,37 +161,196 @@
 
 {% block scripts %}
   <script>
+    const WEEKLY_BUDGET = {{ "%.2f"|format(finance.budget) }};
+    const SERVER_WEEK_SPEND = {{ "%.2f"|format(finance.metrics.week if current_user.is_authenticated else 0) }};
+    const isLoggedInUser = {{ 'true' if current_user.is_authenticated else 'false' }};
     const chatForm = document.getElementById("chat-form");
-    const chatThread = document.getElementById("chat-thread");
+    const chatMessages = document.getElementById("chat-messages");
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
 
-    if (chatForm && chatThread) {
-      chatForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const formData = new FormData(chatForm);
-        const message = formData.get("message");
-        const userBubble = document.createElement("article");
-        userBubble.className = "chat-bubble chat-bubble--user";
-        userBubble.textContent = message;
-        chatThread.appendChild(userBubble);
-        chatForm.reset();
+    function getBudgetData() {
+      const stored = localStorage.getItem("cs_budget");
+      return stored ? JSON.parse(stored) : { spent: 0, entries: [] };
+    }
 
-        try {
-          const response = await fetch("{{ url_for('api.chat') }}", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken || "" },
-            body: JSON.stringify({ message }),
-          });
-          const payload = await response.json();
-          const assistantBubble = document.createElement("article");
-          assistantBubble.className = "chat-bubble chat-bubble--assistant";
-          assistantBubble.textContent = payload.reply || payload.reason || "I'd stick with your cheapest route for now.";
-          chatThread.appendChild(assistantBubble);
-        } catch (error) {
-          const fallbackBubble = document.createElement("article");
-          fallbackBubble.className = "chat-bubble chat-bubble--assistant";
-          fallbackBubble.textContent = "Your cheapest saved route is still a solid option today.";
-          chatThread.appendChild(fallbackBubble);
+    function saveBudgetData(data) {
+      localStorage.setItem("cs_budget", JSON.stringify(data));
+    }
+
+    function updateBudgetBar() {
+      const data = getBudgetData();
+      const spent = Number(data.spent || 0);
+      const pct = Math.min((spent / WEEKLY_BUDGET) * 100, 100);
+      const remaining = WEEKLY_BUDGET - spent;
+      const label = document.getElementById("budget-label");
+      const remEl = document.getElementById("budget-remaining");
+      const fill = document.getElementById("budget-bar-fill");
+
+      if (!label || !remEl || !fill) return;
+
+      label.textContent = `$${spent.toFixed(2)} of $${WEEKLY_BUDGET.toFixed(2)} this week`;
+
+      if (remaining > 0) {
+        remEl.textContent = `$${remaining.toFixed(2)} left`;
+        remEl.style.color = "var(--text-muted)";
+      } else {
+        remEl.textContent = `$${Math.abs(remaining).toFixed(2)} over budget`;
+        remEl.style.color = "var(--orange)";
+      }
+
+      fill.style.width = pct + "%";
+      if (pct < 60) fill.style.background = "var(--teal)";
+      else if (pct < 85) fill.style.background = "var(--yellow)";
+      else fill.style.background = "var(--orange)";
+    }
+
+    async function postBudgetAction(url, payload = {}) {
+      try {
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken || "",
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        // Local storage already keeps the dashboard responsive.
+      }
+    }
+
+    function addSpend() {
+      const input = document.getElementById("spend-input");
+      const amount = parseFloat(input?.value || "");
+      if (!amount || amount <= 0) return;
+
+      const data = getBudgetData();
+      data.spent = Math.round((Number(data.spent || 0) + amount) * 100) / 100;
+      data.entries = data.entries || [];
+      data.entries.push({ amount, timestamp: new Date().toISOString() });
+      saveBudgetData(data);
+      if (input) input.value = "";
+      updateBudgetBar();
+      postBudgetAction("/api/budget/add", { amount });
+    }
+
+    function resetBudget() {
+      if (!confirm("Reset your weekly budget? This clears all entries.")) return;
+      saveBudgetData({ spent: 0, entries: [] });
+      updateBudgetBar();
+      postBudgetAction("/api/budget/reset");
+    }
+
+    function deleteLastEntry() {
+      const data = getBudgetData();
+      data.entries = data.entries || [];
+      if (!data.entries.length) return;
+      const last = data.entries.pop();
+      data.spent = Math.max(0, Math.round((Number(data.spent || 0) - Number(last.amount || 0)) * 100) / 100);
+      saveBudgetData(data);
+      updateBudgetBar();
+      postBudgetAction("/api/budget/delete-last");
+    }
+
+    function syncBudgetDataFromServer() {
+      const today = new Date();
+      if (today.getDay() === 1 && today.getHours() < 6) {
+        const lastReset = localStorage.getItem("cs_budget_last_reset");
+        const thisMonday = today.toDateString();
+        if (lastReset !== thisMonday) {
+          saveBudgetData({ spent: 0, entries: [] });
+          localStorage.setItem("cs_budget_last_reset", thisMonday);
+        }
+      }
+
+      const existing = getBudgetData();
+      if (isLoggedInUser && (!existing.entries?.length || Number(existing.spent || 0) < SERVER_WEEK_SPEND)) {
+        const seededEntries = SERVER_WEEK_SPEND > 0 ? [{ amount: SERVER_WEEK_SPEND, timestamp: new Date().toISOString() }] : [];
+        saveBudgetData({ spent: SERVER_WEEK_SPEND, entries: seededEntries });
+      }
+      updateBudgetBar();
+    }
+
+    document.addEventListener("DOMContentLoaded", syncBudgetDataFromServer);
+
+    function appendMessage(text, sender) {
+      const container = document.getElementById("chat-messages");
+      if (!container) return null;
+
+      const div = document.createElement("div");
+      div.style.cssText = `
+        margin: 6px 0;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        max-width: 85%;
+        line-height: 1.5;
+        ${sender === "user"
+          ? "background:#1A3A5C; color:#fff; margin-left:auto; text-align:right;"
+          : "background:#0A1828; color:var(--text-primary); margin-right:auto;"}
+      `;
+      div.textContent = text;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    function appendTyping() {
+      const container = document.getElementById("chat-messages");
+      if (!container) return "";
+
+      const div = document.createElement("div");
+      div.id = "typing-" + Date.now();
+      div.style.cssText = "padding:8px 14px; color:var(--text-muted); font-size:12px;";
+      div.textContent = "Thinking...";
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div.id;
+    }
+
+    function removeTyping(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    async function sendChat() {
+      const input = document.getElementById("chat-input");
+      const msg = input?.value.trim();
+      if (!msg) return;
+
+      appendMessage(msg, "user");
+      input.value = "";
+      input.disabled = true;
+
+      const typingId = appendTyping();
+
+      try {
+        const res = await fetch("{{ url_for('api.chat') }}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": document.querySelector("[name=csrf_token]")?.value || csrfToken || "",
+          },
+          body: JSON.stringify({ message: msg }),
+        });
+        const data = await res.json();
+        removeTyping(typingId);
+        appendMessage(data.reply || "What would you like to know about your commute?", "bot");
+      } catch (error) {
+        removeTyping(typingId);
+        appendMessage("Couldn't reach the AI right now - check the plan page for route info.", "bot");
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    if (chatForm && chatMessages) {
+      document.getElementById("chat-input")?.addEventListener("keydown", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendChat();
         }
       });
     }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from flask import Blueprint, render_template
 from flask_login import current_user
@@ -12,6 +12,12 @@ from models.spend_log import SpendLog
 from routes import current_week_start, get_guest_spend_logs, get_onboarding_data, login_or_guest_required
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
+
+
+def get_week_start(weeks_ago: int = 0):
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    return monday - timedelta(weeks=weeks_ago)
 
 
 def _serialize_db_logs() -> list[dict]:
@@ -109,4 +115,67 @@ def build_export_summary(profile_data: dict, payload: dict) -> str:
 def dashboard():
     data = get_onboarding_data()
     payload = build_finance_payload(data)
-    return render_template("finance/dashboard.html", data=data, finance=payload, export_text=build_export_summary(data, payload))
+
+    weekly_data = []
+    monthly_data = []
+    total_spent = 0.0
+    total_saved = 0.0
+    semester_spent = 0.0
+    budget = float(data.get("weekly_budget") or 34.0)
+    is_guest = not current_user.is_authenticated
+
+    if current_user.is_authenticated:
+        for i in range(7, -1, -1):
+            week_start = get_week_start(weeks_ago=i)
+            entries = SpendLog.query.filter(
+                SpendLog.user_id == current_user.id,
+                SpendLog.week_start_date == week_start,
+            ).all()
+            week_total = sum(entry.amount_spent for entry in entries)
+            weekly_data.append({"label": week_start.strftime("%b %d"), "amount": round(week_total, 2)})
+
+        now = datetime.utcnow()
+        for i in range(5, -1, -1):
+            month_date = now - timedelta(days=30 * i)
+            month_start = month_date.replace(day=1).date()
+            next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+            entries = SpendLog.query.filter(
+                SpendLog.user_id == current_user.id,
+                SpendLog.created_at >= datetime.combine(month_start, time.min),
+                SpendLog.created_at < datetime.combine(next_month, time.min),
+            ).all()
+            month_total = sum(entry.amount_spent for entry in entries)
+            monthly_data.append({"label": month_date.strftime("%b"), "amount": round(month_total, 2)})
+
+        all_entries = SpendLog.query.filter_by(user_id=current_user.id).all()
+        total_spent = round(sum(entry.amount_spent for entry in all_entries), 2)
+        profile = current_user.profile
+        budget = float(profile.weekly_budget if profile and profile.weekly_budget is not None else budget)
+        pay_per_ride_cost = 48.00
+        weeks_using_app = len({entry.week_start_date for entry in all_entries})
+        without_app = pay_per_ride_cost * weeks_using_app
+        total_saved = max(0.0, round(without_app - total_spent, 2))
+        semester_spent = total_spent
+    else:
+        today = datetime.utcnow()
+        for i in range(7, -1, -1):
+            week = today - timedelta(weeks=i)
+            weekly_data.append({"label": week.strftime("%b %d"), "amount": 0})
+        for i in range(5, -1, -1):
+            month = today - timedelta(days=30 * i)
+            monthly_data.append({"label": month.strftime("%b"), "amount": 0})
+        budget = 34.00
+
+    return render_template(
+        "finance/dashboard.html",
+        data=data,
+        finance=payload,
+        export_text=build_export_summary(data, payload),
+        weekly_data=weekly_data,
+        monthly_data=monthly_data,
+        total_spent=total_spent,
+        total_saved=total_saved,
+        semester_spent=semester_spent,
+        budget=budget,
+        is_guest=is_guest,
+    )

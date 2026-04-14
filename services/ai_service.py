@@ -123,28 +123,84 @@ def get_recommendation(profile: dict[str, Any], plans: list[dict[str, Any]], con
     return _call_openai_safe(prompt, cache_key, fallback)
 
 
+def rule_based_chat(user_message: str, context: dict[str, Any]) -> str:
+    msg = (user_message or "").lower()
+    home = context.get("home") or "your place"
+    school = context.get("school") or "school"
+    budget = float(context.get("budget") or 34.0)
+
+    if any(word in msg for word in ["fastest", "quick", "fast"]):
+        return f"Your fastest option from {home} to {school} is usually the subway. Check the MTA alerts above before you leave."
+
+    if any(word in msg for word in ["cheap", "cheapest", "save", "budget"]):
+        return f"With a ${budget:.0f}/week budget, OMNY weekly cap at $34 or Citi Bike plus one subway ride usually gives you the best value."
+
+    if any(word in msg for word in ["bike", "citi"]):
+        return "Citi Bike monthly is $17.99 per month, so it's strongest when you're within a few miles of campus. Check dock availability before you head out."
+
+    if any(word in msg for word in ["rain", "weather"]):
+        return "On rainy days, stick to the subway if you can. Citi Bike gets uncomfortable fast and surface routes are more likely to drag."
+
+    if any(word in msg for word in ["today", "now", "morning", "rush"]):
+        return "Check the MTA alerts section above for today's service status. During rush hour, giving yourself an extra 10 minutes is the safest move."
+
+    return "Great question! Open the Plan page to compare your route options side by side with real commute costs."
+
+
+def get_chat_reply(user_message: str, context: dict[str, Any]) -> str:
+    _reset_daily_counter_if_needed()
+
+    if _ai_counter["count"] >= DAILY_AI_CALL_LIMIT or not Config.OPENAI_API_KEY:
+        return rule_based_chat(user_message, context)
+
+    try:
+        _ai_counter["count"] += 1
+        client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        methods = context.get("methods") or ["subway"]
+        system_prompt = (
+            "You are CommuteSmart's AI coach for NYC students. "
+            f"You are helping a student who lives near {context.get('home') or 'unknown'} "
+            f"and goes to {context.get('school') or 'unknown'}. "
+            f"Their weekly commute budget is ${float(context.get('budget') or 34.0):.2f}. "
+            f"They use: {', '.join(methods)}. "
+            f"They commute {int(context.get('days_per_week') or 4)} days a week.\n\n"
+            "Answer their specific question directly and concisely. "
+            "Give NYC-specific advice using real subway lines, MTA info, Citi Bike, or car costs. "
+            "Keep answers under 3 sentences. Be friendly, direct, and helpful. "
+            "Never give the same generic response twice - answer the specific question asked. "
+            "If asked about the fastest route, give the fastest. If asked about the cheapest, give the cheapest. "
+            "If you don't know exact real-time data, give your best general advice."
+        )
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=150,
+            temperature=0.7,
+        )
+        reply = response.choices[0].message.content.strip()
+        return reply or rule_based_chat(user_message, context)
+    except Exception as exc:  # pragma: no cover - network-dependent
+        logger.error("OpenAI chat error: %s", exc)
+        return rule_based_chat(user_message, context)
+
+
 def answer_commute_question(
     user_message: str,
     profile: dict[str, Any],
     plans: list[dict[str, Any]] | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    fallback = {
-        "reply": "Right now I'd stick with your cheapest saved route and re-check around rush hour for any changes.",
-        "source": "fallback",
+    chat_context = {
+        "home": profile.get("home_address") or profile.get("origin") or "unknown",
+        "school": profile.get("school_name") or profile.get("school_address") or profile.get("destination") or "unknown",
+        "budget": profile.get("weekly_budget") or 34.0,
+        "methods": profile.get("transport_modes") or ["subway"],
+        "days_per_week": profile.get("days_per_week") or 4,
     }
-    plans = plans or []
-    prompt = json.dumps(
-        {
-            "message": user_message,
-            "profile": profile,
-            "plans": plans,
-            "context": context or {},
-            "schema": {"reply": "string"},
-        }
-    )
-    cache_key = make_cache_key("chat", hashlib.sha1(prompt.encode("utf-8")).hexdigest())
-    return _call_openai_safe(prompt, cache_key, fallback)
+    return {"reply": get_chat_reply(user_message, chat_context), "source": "fallback" if not Config.OPENAI_API_KEY else "openai"}
 
 
 if __name__ == "__main__":
