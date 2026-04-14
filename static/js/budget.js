@@ -7,15 +7,17 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribut
 
 const refreshMetrics = (finance) => {
   const week = document.querySelector("[data-metric-week]");
-  const month = document.querySelector("[data-metric-month]");
+  const total = document.querySelector("[data-metric-total]");
   const semester = document.querySelector("[data-metric-semester]");
   const saved = document.querySelector("[data-metric-saved]");
   const percent = document.querySelector("[data-budget-percent]");
 
-  if (week) week.textContent = `$${Math.round(finance.metrics.week)}`;
-  if (month) month.textContent = `$${Math.round(finance.metrics.month)}`;
-  if (semester) semester.textContent = `$${Math.round(finance.metrics.semester)}`;
-  if (saved) saved.textContent = `$${Math.round(finance.metrics.saved)}`;
+  const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`;
+
+  if (week) week.textContent = formatMoney(finance.metrics.week);
+  if (total) total.textContent = formatMoney(finance.metrics.total);
+  if (semester) semester.textContent = formatMoney(finance.metrics.semester);
+  if (saved) saved.textContent = formatMoney(finance.metrics.saved);
   if (percent) percent.textContent = `${finance.budget_status.percent}% used`;
 };
 

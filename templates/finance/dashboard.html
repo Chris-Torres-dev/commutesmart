@@ -18,7 +18,7 @@
       </article>
       <article class="metric-card">
         <p class="label">Total spent</p>
-        <h2 data-metric-month style="color:var(--baby-blue);">${{ "%.2f"|format(total_spent) }}</h2>
+        <h2 data-metric-total style="color:var(--baby-blue);">${{ "%.2f"|format(total_spent) }}</h2>
       </article>
       <article class="metric-card metric-card--sage">
         <p class="label">You saved</p>
@@ -155,12 +155,24 @@
 
 {% block scripts %}
   {% if not is_guest %}
+    <script type="application/json" id="chart-data">
+      {
+        "weekly_labels": {{ weekly_data | map(attribute='label') | list | tojson }},
+        "weekly_amounts": {{ weekly_data | map(attribute='amount') | list | tojson }},
+        "monthly_labels": {{ monthly_data | map(attribute='label') | list | tojson }},
+        "monthly_amounts": {{ monthly_data | map(attribute='amount') | list | tojson }},
+        "budget": {{ budget | tojson }}
+      }
+    </script>
     <script>
-      const weeklyLabels = {{ weekly_data | map(attribute='label') | list | tojson }};
-      const weeklyAmounts = {{ weekly_data | map(attribute='amount') | list | tojson }};
-      const monthlyLabels = {{ monthly_data | map(attribute='label') | list | tojson }};
-      const monthlyAmounts = {{ monthly_data | map(attribute='amount') | list | tojson }};
-      const weeklyBudget = {{ budget | tojson }};
+      const chartData = JSON.parse(
+        document.getElementById("chart-data").textContent
+      );
+      const weeklyLabels = chartData.weekly_labels;
+      const weeklyAmounts = chartData.weekly_amounts;
+      const monthlyLabels = chartData.monthly_labels;
+      const monthlyAmounts = chartData.monthly_amounts;
+      const weeklyBudget = chartData.budget;
 
       const chartDefaults = {
         responsive: true,

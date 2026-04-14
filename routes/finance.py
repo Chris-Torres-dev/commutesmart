@@ -1,92 +1,179 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, render_template
 from flask_login import current_user
 
-from config import Config
 from extensions import limiter
 from models.spend_log import SpendLog
-from routes import current_week_start, get_guest_spend_logs, get_onboarding_data, login_or_guest_required
+from routes import (
+    current_week_start,
+    get_guest_spend_logs,
+    get_onboarding_data,
+    login_or_guest_required,
+)
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
 
 
-def get_week_start(weeks_ago: int = 0):
-    today = datetime.utcnow().date()
-    monday = today - timedelta(days=today.weekday())
+def get_week_start(weeks_ago: int = 0, *, anchor: date | None = None) -> date:
+    anchor_date = anchor or date.today()
+    monday = anchor_date - timedelta(days=anchor_date.weekday())
     return monday - timedelta(weeks=weeks_ago)
+
+
+def get_month_start(
+    months_ago: int = 0,
+    *,
+    anchor: date | None = None,
+) -> date:
+    anchor_date = (anchor or date.today()).replace(day=1)
+    month = anchor_date.month - months_ago
+    year = anchor_date.year
+    while month <= 0:
+        year -= 1
+        month += 12
+    return date(year, month, 1)
+
+
+def _parse_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _recent_log_sort_key(log: dict) -> tuple[datetime, float]:
+    created_at = _parse_datetime(log.get("created_at")) or datetime.min
+    return created_at, float(log.get("amount_spent") or 0.0)
 
 
 def _serialize_db_logs() -> list[dict]:
     if not current_user.is_authenticated:
         return []
     serialized = []
-    for log in SpendLog.query.filter_by(user_id=current_user.id).order_by(SpendLog.week_start_date.asc()).all():
+    query = (
+        SpendLog.query.filter_by(user_id=current_user.id)
+        .order_by(SpendLog.created_at.asc())
+        .all()
+    )
+    for log in query:
         serialized.append(
             {
                 "week_start_date": log.week_start_date.isoformat(),
                 "amount_spent": float(log.amount_spent),
                 "transport_mode": log.transport_mode,
                 "notes": log.notes or "",
-                "created_at": log.created_at.isoformat(),
+                "created_at": (
+                    log.created_at.isoformat() if log.created_at else ""
+                ),
             }
         )
     return serialized
 
 
 def get_spend_logs(profile_data: dict) -> list[dict]:
-    logs = _serialize_db_logs() if current_user.is_authenticated else get_guest_spend_logs()
+    logs = (
+        _serialize_db_logs()
+        if current_user.is_authenticated
+        else get_guest_spend_logs()
+    )
     return logs or []
 
 
 def build_finance_payload(profile_data: dict) -> dict:
     logs = get_spend_logs(profile_data)
     budget = float(profile_data.get("weekly_budget") or 34)
+    today = date.today()
     week_start = current_week_start()
 
-    weekly_map = defaultdict(float)
-    monthly_map = defaultdict(float)
+    weekly_map: dict[date, float] = defaultdict(float)
+    monthly_map: dict[date, float] = defaultdict(float)
+    total_spent = 0.0
+    active_weeks: set[date] = set()
     for log in logs:
-        weekly_map[log["week_start_date"]] += float(log["amount_spent"])
-        month_key = log["week_start_date"][:7]
-        monthly_map[month_key] += float(log["amount_spent"])
+        amount = float(log.get("amount_spent") or 0.0)
+        total_spent += amount
+
+        week_key = _parse_date(log.get("week_start_date"))
+        if week_key:
+            weekly_map[week_key] += amount
+            active_weeks.add(week_key)
+
+        created_at = _parse_datetime(log.get("created_at"))
+        month_source = created_at.date() if created_at else week_key
+        if month_source:
+            monthly_map[month_source.replace(day=1)] += amount
 
     weekly_points = []
     for offset in range(7, -1, -1):
-        current = week_start - timedelta(weeks=offset)
-        key = current.isoformat()
-        weekly_points.append({"label": current.strftime("%b %d"), "amount": round(weekly_map.get(key, 0.0), 2)})
+        current = get_week_start(offset, anchor=today)
+        weekly_points.append(
+            {
+                "label": current.strftime("%b %d"),
+                "amount": round(weekly_map.get(current, 0.0), 2),
+            }
+        )
 
     monthly_points = []
-    month_anchor = date.today().replace(day=1)
     for offset in range(5, -1, -1):
-        month = (month_anchor.replace(day=15) - timedelta(days=offset * 30)).replace(day=1)
-        key = month.strftime("%Y-%m")
-        monthly_points.append({"label": month.strftime("%b"), "amount": round(monthly_map.get(key, 0.0), 2)})
+        month = get_month_start(offset, anchor=today)
+        monthly_points.append(
+            {
+                "label": month.strftime("%b"),
+                "amount": round(monthly_map.get(month, 0.0), 2),
+            }
+        )
 
-    current_week_spend = round(weekly_map.get(week_start.isoformat(), weekly_points[-1]["amount"]), 2)
-    this_month_key = date.today().strftime("%Y-%m")
-    this_month_spend = round(monthly_map.get(this_month_key, sum(point["amount"] for point in weekly_points[-4:])), 2)
-    semester_total = round(sum(point["amount"] for point in weekly_points), 2)
-    current_floor = min(Config.OMNY_WEEKLY_CAP, Config.OMNY_PER_RIDE * int(profile_data.get("days_per_week") or 4) * int(profile_data.get("trips_per_day") or 2))
-    saved = round(max(0.0, (budget - current_floor) * 16), 2)
-    if not current_user.is_authenticated and not logs:
-        saved = 0.0
+    current_week_spend = round(weekly_map.get(week_start, 0.0), 2)
+    current_month = get_month_start(anchor=today)
+    this_month_spend = round(monthly_map.get(current_month, 0.0), 2)
+    total_spent = round(total_spent, 2)
+    semester_total = total_spent
+    baseline_weekly_cost = 48.0
+    saved = 0.0
+    if active_weeks:
+        saved = round(
+            max(0.0, (baseline_weekly_cost * len(active_weeks)) - total_spent),
+            2,
+        )
+    recent_logs = sorted(logs, key=_recent_log_sort_key, reverse=True)[:5]
 
     return {
         "metrics": {
             "week": current_week_spend,
             "month": this_month_spend,
+            "total": total_spent,
             "semester": semester_total,
             "saved": saved,
         },
         "weekly_points": weekly_points,
         "monthly_points": monthly_points,
         "budget": budget,
-        "logs": logs[-5:][::-1],
+        "logs": recent_logs,
         "budget_status": {
             "percent": round((current_week_spend / max(budget, 1)) * 100, 1),
             "remaining": round(max(0.0, budget - current_week_spend), 2),
@@ -104,7 +191,8 @@ def build_export_summary(profile_data: dict, payload: dict) -> str:
             f"This month spent: ${metrics['month']:.2f}",
             f"Semester total: ${metrics['semester']:.2f}",
             f"Potential semester savings: ${metrics['saved']:.2f}",
-            f"Preferred modes: {', '.join(profile_data.get('transport_modes') or ['subway'])}",
+            "Preferred modes: "
+            f"{', '.join(profile_data.get('transport_modes') or ['subway'])}",
         ]
     )
 
@@ -115,56 +203,13 @@ def build_export_summary(profile_data: dict, payload: dict) -> str:
 def dashboard():
     data = get_onboarding_data()
     payload = build_finance_payload(data)
-
-    weekly_data = []
-    monthly_data = []
-    total_spent = 0.0
-    total_saved = 0.0
-    semester_spent = 0.0
-    budget = float(data.get("weekly_budget") or 34.0)
+    weekly_data = payload["weekly_points"]
+    monthly_data = payload["monthly_points"]
+    total_spent = payload["metrics"]["total"]
+    total_saved = payload["metrics"]["saved"]
+    semester_spent = payload["metrics"]["semester"]
+    budget = payload["budget"]
     is_guest = not current_user.is_authenticated
-
-    if current_user.is_authenticated:
-        for i in range(7, -1, -1):
-            week_start = get_week_start(weeks_ago=i)
-            entries = SpendLog.query.filter(
-                SpendLog.user_id == current_user.id,
-                SpendLog.week_start_date == week_start,
-            ).all()
-            week_total = sum(entry.amount_spent for entry in entries)
-            weekly_data.append({"label": week_start.strftime("%b %d"), "amount": round(week_total, 2)})
-
-        now = datetime.utcnow()
-        for i in range(5, -1, -1):
-            month_date = now - timedelta(days=30 * i)
-            month_start = month_date.replace(day=1).date()
-            next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
-            entries = SpendLog.query.filter(
-                SpendLog.user_id == current_user.id,
-                SpendLog.created_at >= datetime.combine(month_start, time.min),
-                SpendLog.created_at < datetime.combine(next_month, time.min),
-            ).all()
-            month_total = sum(entry.amount_spent for entry in entries)
-            monthly_data.append({"label": month_date.strftime("%b"), "amount": round(month_total, 2)})
-
-        all_entries = SpendLog.query.filter_by(user_id=current_user.id).all()
-        total_spent = round(sum(entry.amount_spent for entry in all_entries), 2)
-        profile = current_user.profile
-        budget = float(profile.weekly_budget if profile and profile.weekly_budget is not None else budget)
-        pay_per_ride_cost = 48.00
-        weeks_using_app = len({entry.week_start_date for entry in all_entries})
-        without_app = pay_per_ride_cost * weeks_using_app
-        total_saved = max(0.0, round(without_app - total_spent, 2))
-        semester_spent = total_spent
-    else:
-        today = datetime.utcnow()
-        for i in range(7, -1, -1):
-            week = today - timedelta(weeks=i)
-            weekly_data.append({"label": week.strftime("%b %d"), "amount": 0})
-        for i in range(5, -1, -1):
-            month = today - timedelta(days=30 * i)
-            monthly_data.append({"label": month.strftime("%b"), "amount": 0})
-        budget = 34.00
 
     return render_template(
         "finance/dashboard.html",
